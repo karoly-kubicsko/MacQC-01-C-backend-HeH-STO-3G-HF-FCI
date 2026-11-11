@@ -112,26 +112,70 @@ struct PotentialCurveView: View {
                         y: .value("Total energy (E_h)", minimum.energy)
                     )
                     .foregroundStyle(by: .value("Method", minimum.method))
-                    .symbol(.diamond)
-                    .symbolSize(140)
-                    .annotation(position: minimum.method == "HF" ? .bottom : .top, spacing: 6) {
-                        Text(String(format: "%@ min: R = %.3f, E = %.6f", minimum.method, minimum.R, minimum.energy))
-                            .font(.caption2.monospacedDigit())
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
-                    }
+                    .symbol(symbol(for: minimum.method))
+                    .symbolSize(110)
                 }
             }
-            .chartForegroundStyleScale(["HF": Color.blue, "FCI": Color.orange])
+            .chartForegroundStyleScale(["HF": Color.orange, "FCI": Color.blue])
             .chartXScale(domain: xDomain)
             .chartYScale(domain: yDomain)
             .chartXAxisLabel("R (bohr)")
             .chartYAxisLabel("Total energy (E_h)")
             .chartLegend(position: .top, alignment: .trailing)
+            .chartOverlay { proxy in
+                // One readout box in an empty corner of the plot area, so the labels can
+                // neither overlap each other nor the curves.
+                GeometryReader { geometry in
+                    if let plotFrame = proxy.plotFrame, !model.curveMinima.isEmpty {
+                        let frame = geometry[plotFrame]
+                        minimaReadout
+                            .padding(10)
+                            .frame(width: frame.width, height: frame.height, alignment: readoutAlignment)
+                            .offset(x: frame.minX, y: frame.minY)
+                            .allowsHitTesting(false)
+                    }
+                }
+            }
             .frame(minHeight: 380)
         }
         .dataPanel()
+    }
+
+    // MARK: Minima markers and readout
+
+    private func symbol(for method: String) -> BasicChartSymbolShape {
+        method == "HF" ? .diamond : .circle
+    }
+
+    private func color(for method: String) -> Color {
+        method == "HF" ? .orange : .blue
+    }
+
+    /// Bottom-right normally (the curves level off high up at large R); bottom-left if a
+    /// minimum lies in the right half of the scan.
+    private var readoutAlignment: Alignment {
+        let middle = (xDomain.lowerBound + xDomain.upperBound) / 2
+        let anyOnRight = model.curveMinima.contains { $0.R > middle }
+        return anyOnRight ? .bottomLeading : .bottomTrailing
+    }
+
+    private var minimaReadout: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(model.curveMinima) { minimum in
+                HStack(spacing: 6) {
+                    Image(systemName: minimum.method == "HF" ? "diamond.fill" : "circle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(color(for: minimum.method))
+                    Text(String(format: "%@ min: R = %.3f bohr, E = %.6f E_h",
+                                minimum.method, minimum.R, minimum.energy))
+                        .font(.caption.monospacedDigit())
+                }
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .fixedSize()
     }
 
     // MARK: Axis ranges
