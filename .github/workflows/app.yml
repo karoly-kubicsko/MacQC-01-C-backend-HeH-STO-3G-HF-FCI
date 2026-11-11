@@ -1,7 +1,7 @@
 name: app
 
 # Compile-checks the SwiftUI app on a GitHub macOS runner and uploads a universal
-# (Apple Silicon + Intel), ad-hoc signed MacQC.app as a downloadable artifact.
+# (Apple Silicon + Intel), ad-hoc signed ΨLab.app as a downloadable artifact.
 # The Xcode project is generated from xcode/project.yml with XcodeGen.
 
 on:
@@ -45,8 +45,8 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild \
-            -project xcode/MacQC.xcodeproj \
-            -scheme MacQC \
+            -project xcode/PsiLab.xcodeproj \
+            -scheme PsiLab \
             -configuration Release \
             -destination 'generic/platform=macOS' \
             ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
@@ -60,16 +60,16 @@ jobs:
 
       - name: Inspect the app bundle
         run: |
-          lipo -archs build/app/MacQC.app/Contents/MacOS/MacQC
-          codesign -dv --entitlements - build/app/MacQC.app 2>&1 | head -n 30
+          lipo -archs "build/app/ΨLab.app/Contents/MacOS/ΨLab"
+          codesign -dv --entitlements - "build/app/ΨLab.app" 2>&1 | head -n 30
 
       - name: Package
-        run: ditto -c -k --keepParent build/app/MacQC.app MacQC-app.zip
+        run: ditto -c -k --keepParent "build/app/ΨLab.app" "ΨLab.app.zip"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: MacQC-app
-          path: MacQC-app.zip
+          name: PsiLab-app
+          path: ΨLab.app.zip
 
       # Launch the app on the runner, screenshot each tab and dump the visible text.
       # Evidence only: this step never fails the job (accessibility / screen-recording
@@ -77,7 +77,7 @@ jobs:
       - name: UI smoke test (launch, screenshots, tab text, menus)
         continue-on-error: true
         timeout-minutes: 10
-        run: bash xcode/ci/ui_smoke.sh build/app/MacQC.app ui-smoke
+        run: bash xcode/ci/ui_smoke.sh "build/app/ΨLab.app" ui-smoke
 
       - uses: actions/upload-artifact@v4
         if: always()

@@ -18,7 +18,7 @@ struct ContentView: View {
         } detail: {
             DetailView(model: model)
         }
-        .navigationTitle("MacQC")
+        .navigationTitle("ΨLab")
         .preferredColorScheme((AppearanceChoice(rawValue: appearanceRaw) ?? .system).colorScheme)
         .task {
             // Show a result right away with the Szabo–Ostlund defaults.

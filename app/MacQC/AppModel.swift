@@ -246,7 +246,7 @@ final class AppModel {
     func summaryText() -> String? {
         guard let out = result, let hf = out.hf else { return nil }
         var lines: [String] = []
-        lines.append("MacQC – HeH+ (STO-\(out.input.nGaussians)G)")
+        lines.append("ΨLab – HeH+ (STO-\(out.input.nGaussians)G)")
         lines.append(String(format: "R = %.4f bohr, zeta(He) = %.4f, zeta(H) = %.4f, %@ erf",
                             out.input.R, out.input.zeta1, out.input.zeta2,
                             out.input.exactErf ? "exact" : "Abramowitz-Stegun"))
@@ -303,7 +303,7 @@ final class AppModel {
         panel.title = "Export Results as JSON"
         panel.allowedContentTypes = [UTType.json]
         panel.canCreateDirectories = true
-        panel.nameFieldStringValue = String(format: "MacQC-HeH+-STO%ldG-R%.4f.json",
+        panel.nameFieldStringValue = String(format: "PsiLab-HeH+-STO%ldG-R%.4f.json",
                                             out.input.nGaussians, out.input.R)
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {

@@ -1,6 +1,6 @@
 # MacQC – C++ backend (HeH⁺, STO-nG, RHF + Full CI)
 
-Stage 1 of MacQC, a macOS quantum-chemistry app. This repository contains the C++17 backend only
+Stage 1 of MacQC (the app is called **ΨLab**), a macOS quantum-chemistry app. This repository contains the C++17 backend only
 (standard library + the vendored `nlohmann/json` single header, MIT). A SwiftUI app will later
 compile these sources directly in its Xcode target and call the C API.
 
@@ -166,7 +166,7 @@ For the later SwiftUI target (no Swift code is part of this repository yet):
 
 ## macOS app
 
-The SwiftUI front end lives in `app/MacQC/`; see [`app/SETUP.md`](app/SETUP.md) for the step-by-step
+The SwiftUI front end, **ΨLab**, lives in `app/MacQC/`; see [`app/SETUP.md`](app/SETUP.md) for the step-by-step
 Xcode setup. The backend's behaviour is unchanged by it.
 
 ## Continuous integration
