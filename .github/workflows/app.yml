@@ -76,6 +76,7 @@ jobs:
       # permissions on the runner decide how much it can see).
       - name: UI smoke test (launch, screenshots, tab text, menus)
         continue-on-error: true
+        timeout-minutes: 6
         run: bash xcode/ci/ui_smoke.sh build/app/MacQC.app ui-smoke
 
       - uses: actions/upload-artifact@v4

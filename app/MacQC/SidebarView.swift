@@ -63,6 +63,7 @@ struct SidebarView: View {
                     model.resetToDefaults()
                 }
                 .secondaryActionStyle()
+                .accessibilityLabel("Reset to Szabo–Ostlund defaults")
                 .frame(maxWidth: .infinity)
                 .disabled(model.isRunning)
             }
@@ -92,6 +93,7 @@ struct SidebarView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .prominentActionStyle()
+                .accessibilityLabel("Run")
                 .controlSize(.large)
                 .keyboardShortcut("r", modifiers: [.command])
                 .disabled(model.isRunning)
