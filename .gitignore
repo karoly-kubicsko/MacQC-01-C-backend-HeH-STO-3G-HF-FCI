@@ -3,3 +3,8 @@ build/
 *.a
 __pycache__/
 .DS_Store
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
