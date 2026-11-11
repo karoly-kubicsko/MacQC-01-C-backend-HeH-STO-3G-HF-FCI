@@ -1,0 +1,32 @@
+name: backend
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install NumPy (needed by the reference script)
+        run: python3 -m pip install numpy
+
+      - name: Expected reports match the reference script
+        run: |
+          python3 backend/tests/gen_expected.py
+          git diff --exit-code -- backend/tests/data
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
