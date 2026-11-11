@@ -40,7 +40,7 @@ Use *File ▸ Add Files to "MacQC"…* (or drag from Finder). Always: **"Copy it
 
 | What | Files | Target membership |
 | --- | --- | --- |
-| App | everything in `app/MacQC/` (11 `.swift` files and `MacQC-Bridging-Header.h`) | `.swift`: MacQC; header: none needed |
+| App | everything in `app/MacQC/` (12 `.swift` files and `MacQC-Bridging-Header.h`) | `.swift`: MacQC; header: none needed |
 | Backend sources | `backend/src/linalg.cpp`, `integrals.cpp`, `report.cpp`, `scf.cpp`, `fci.cpp`, `calculation.cpp`, `api.cpp` | MacQC |
 | Backend headers | `backend/include/macqc/*.h` | (headers only) |
 | JSON library | `third_party/nlohmann/json.hpp` | (header only) |
@@ -48,7 +48,7 @@ Use *File ▸ Add Files to "MacQC"…* (or drag from Finder). Always: **"Copy it
 **Do not add** `backend/cli/main.cpp`, anything in `backend/tests/`, or `reference/` (the CLI and
 the test program have their own `main`, which would clash with the app's).
 
-Check *MacQC target ▸ Build Phases ▸ Compile Sources*: exactly 11 Swift files + 7 C++ files.
+Check *MacQC target ▸ Build Phases ▸ Compile Sources*: exactly 12 Swift files + 7 C++ files.
 
 ## 3. Build settings
 

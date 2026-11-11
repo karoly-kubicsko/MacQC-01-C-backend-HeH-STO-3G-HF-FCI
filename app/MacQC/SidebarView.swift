@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SidebarView: View {
     @Bindable var model: AppModel
+    @AppStorage(AppearanceChoice.storageKey) private var appearanceRaw: String = AppearanceChoice.system.rawValue
 
     private static let numberFormat = FloatingPointFormatStyle<Double>()
         .precision(.fractionLength(0...6))
@@ -56,6 +57,16 @@ struct SidebarView: View {
             Section("Options") {
                 Toggle("Exact erf (std::erf)", isOn: $model.exactErf)
                     .help("Use the C++ standard-library erf instead of the Abramowitz–Stegun approximation of the original FORTRAN program.")
+            }
+
+            Section("Appearance") {
+                Picker("Appearance", selection: $appearanceRaw) {
+                    ForEach(AppearanceChoice.allCases) { choice in
+                        Text(choice.title).tag(choice.rawValue)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
             }
 
             Section {

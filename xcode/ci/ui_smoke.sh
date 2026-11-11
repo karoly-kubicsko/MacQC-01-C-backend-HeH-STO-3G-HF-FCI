@@ -186,6 +186,24 @@ echo "::group::clipboard after Copy Summary as Text"
 pbpaste | tee "$OUT/clipboard-summary.txt"
 echo "::endgroup::"
 
+# --- dark mode pass: relaunch with the in-app appearance forced to dark ---------------
+echo "== dark mode pass"
+pkill -x MacQC || true
+sleep 3
+open -n "$APP" --args -appearanceChoice dark
+sleep 15
+click_shot() {   # $1 = file prefix, $2 = tab to click ("" = none)
+    with_timeout 60 osascript "$OUT/tab.applescript" "$2" > "$OUT/$1.txt" 2>&1
+    shot "$1"
+}
+click_shot "dark-01-summary" "Summary"
+click_shot "dark-02-hartree-fock" "Hartree–Fock"
+click_shot "dark-03-full-ci" "Full CI"
+click_shot "dark-04-potential-curve" "Potential curve"
+with_timeout 90 osascript "$OUT/tab.applescript" "__SCAN__" | grep -E "CLICKED|NOT FOUND"
+sleep 8
+shot "dark-05-curve-after-scan"
+
 # Print downscaled screenshots into the log as base64 JPEG so they can be read through the
 # GitHub API without downloading the artifact. Decode: lines between IMG_BEGIN/IMG_END.
 echo "== screenshots (base64 JPEG)"
