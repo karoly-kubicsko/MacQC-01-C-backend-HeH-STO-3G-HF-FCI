@@ -63,7 +63,7 @@ shot() { screencapture -x "$OUT/$1.png" || echo "screencapture failed for $1"; }
 
 dump_tab() {   # $1 = file prefix, $2 = element to click ("" = none)
     echo "::group::UI text: $1"
-    with_timeout 120 osascript "$OUT/tab.applescript" "$2" | tee "$OUT/$1.txt"
+    with_timeout 40 osascript "$OUT/tab.applescript" "$2" | tee "$OUT/$1.txt"
     echo "::endgroup::"
     shot "$1"
 }
@@ -80,7 +80,7 @@ dump_tab "03-full-ci" "Full CI"
 dump_tab "04-potential-curve" "Potential curve"
 
 echo "== running the potential-curve scan"
-with_timeout 120 osascript "$OUT/tab.applescript" "Run scan" > /dev/null
+with_timeout 40 osascript "$OUT/tab.applescript" "Run scan" > /dev/null
 sleep 10
 dump_tab "05-curve-after-scan" ""
 
@@ -100,7 +100,7 @@ tell application "System Events"
     end tell
 end tell
 APPLESCRIPT
-with_timeout 60 osascript "$OUT/menus.applescript" | tee "$OUT/menus.txt"
+with_timeout 30 osascript "$OUT/menus.applescript" | tee "$OUT/menus.txt"
 echo "::endgroup::"
 
 echo "== Edit > Copy Summary as Text"
@@ -112,7 +112,7 @@ tell application "System Events"
     end tell
 end tell
 APPLESCRIPT
-with_timeout 60 osascript "$OUT/copy.applescript" || echo "could not click the menu item"
+with_timeout 30 osascript "$OUT/copy.applescript" || echo "could not click the menu item"
 sleep 1
 echo "::group::clipboard after Copy Summary as Text"
 pbpaste | tee "$OUT/clipboard-summary.txt"
