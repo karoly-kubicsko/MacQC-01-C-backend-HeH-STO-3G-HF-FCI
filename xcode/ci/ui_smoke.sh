@@ -86,7 +86,7 @@ dump_tab "05-curve-after-scan" ""
 
 echo "== menu commands"
 echo "::group::menu items"
-with_timeout 60 osascript <<'APPLESCRIPT' | tee "$OUT/menus.txt"
+cat > "$OUT/menus.applescript" <<'APPLESCRIPT'
 tell application "System Events"
     tell process "MacQC"
         set out to ""
@@ -100,17 +100,19 @@ tell application "System Events"
     end tell
 end tell
 APPLESCRIPT
+with_timeout 60 osascript "$OUT/menus.applescript" | tee "$OUT/menus.txt"
 echo "::endgroup::"
 
 echo "== Edit > Copy Summary as Text"
 pbcopy < /dev/null
-with_timeout 60 osascript <<'APPLESCRIPT' || echo "could not click the menu item"
+cat > "$OUT/copy.applescript" <<'APPLESCRIPT'
 tell application "System Events"
     tell process "MacQC"
         click menu item "Copy Summary as Text" of menu 1 of menu bar item "Edit" of menu bar 1
     end tell
 end tell
 APPLESCRIPT
+with_timeout 60 osascript "$OUT/copy.applescript" || echo "could not click the menu item"
 sleep 1
 echo "::group::clipboard after Copy Summary as Text"
 pbpaste | tee "$OUT/clipboard-summary.txt"
