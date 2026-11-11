@@ -17,6 +17,7 @@ add_library(macqc STATIC
   backend/src/linalg.cpp
   backend/src/integrals.cpp
   backend/src/report.cpp
-  backend/src/scf.cpp)
+  backend/src/scf.cpp
+  backend/src/fci.cpp)
 target_include_directories(macqc PUBLIC backend/include)
 target_include_directories(macqc PRIVATE third_party)
