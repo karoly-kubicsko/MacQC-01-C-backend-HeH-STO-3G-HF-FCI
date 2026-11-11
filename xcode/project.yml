@@ -1,0 +1,65 @@
+# XcodeGen spec for the MacQC app (https://github.com/yonaskolb/XcodeGen).
+#
+# It encodes the settings from app/SETUP.md so that the Xcode project can be generated
+# instead of created by hand:
+#
+#     brew install xcodegen
+#     cd xcode && xcodegen generate     # creates xcode/MacQC.xcodeproj
+#
+# GitHub Actions (.github/workflows/app.yml) uses it to compile-check the app and to build a
+# universal (arm64 + x86_64) MacQC.app artifact. The generated project is not committed.
+name: MacQC
+
+options:
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+targets:
+  MacQC:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+
+    sources:
+      - path: ../app/MacQC
+        name: App
+      - path: ../backend/src
+        name: Backend
+      - path: ../backend/include
+        name: BackendHeaders
+        buildPhase: none
+      - path: ../third_party/nlohmann
+        name: ThirdParty
+        buildPhase: none
+
+    entitlements:
+      path: MacQC.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.files.user-selected.read-write: true
+
+    settings:
+      base:
+        PRODUCT_NAME: MacQC
+        PRODUCT_BUNDLE_IDENTIFIER: org.macqc.MacQC
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: MacQC
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        # Swift: language mode 6, with the Xcode 26 template's concurrency defaults.
+        SWIFT_VERSION: "6.0"
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+        SWIFT_OBJC_BRIDGING_HEADER: "$(SRCROOT)/../app/MacQC/MacQC-Bridging-Header.h"
+        # C++ backend.
+        HEADER_SEARCH_PATHS: "$(SRCROOT)/../backend/include $(SRCROOT)/../third_party"
+        CLANG_CXX_LANGUAGE_STANDARD: c++17
+        CLANG_CXX_LIBRARY: libc++
+        OTHER_CPLUSPLUSFLAGS: "$(inherited) -ffp-contract=off"
+        # Ad-hoc signing: runs locally (Apple Silicon requires some signature).
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_HARDENED_RUNTIME: YES

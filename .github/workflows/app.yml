@@ -1,0 +1,78 @@
+name: app
+
+# Compile-checks the SwiftUI app on a GitHub macOS runner and uploads a universal
+# (Apple Silicon + Intel), ad-hoc signed MacQC.app as a downloadable artifact.
+# The Xcode project is generated from xcode/project.yml with XcodeGen.
+
+on:
+  push:
+    paths:
+      - "app/**"
+      - "backend/**"
+      - "third_party/**"
+      - "xcode/**"
+      - ".github/workflows/app.yml"
+  pull_request:
+    paths:
+      - "app/**"
+      - "backend/**"
+      - "third_party/**"
+      - "xcode/**"
+      - ".github/workflows/app.yml"
+  workflow_dispatch:
+
+jobs:
+  build-app:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+          xcrun --show-sdk-version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: |
+          cd xcode
+          xcodegen generate --spec project.yml
+
+      - name: Build (universal, Release)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project xcode/MacQC.xcodeproj \
+            -scheme MacQC \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
+            CONFIGURATION_BUILD_DIR="$PWD/build/app" \
+            build 2>&1 | tee build.log
+
+      - name: Print compiler errors and warnings
+        if: always()
+        run: |
+          grep -E "error:|warning:" build.log | sort -u | head -n 200 || true
+
+      - name: Inspect the app bundle
+        run: |
+          lipo -archs build/app/MacQC.app/Contents/MacOS/MacQC
+          codesign -dv --entitlements - build/app/MacQC.app 2>&1 | head -n 30
+
+      - name: Package
+        run: ditto -c -k --keepParent build/app/MacQC.app MacQC-app.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MacQC-app
+          path: MacQC-app.zip
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: build-log
+          path: build.log

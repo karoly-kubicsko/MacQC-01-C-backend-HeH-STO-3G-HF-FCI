@@ -7,7 +7,24 @@ it runs natively on Apple Silicon and on Intel Macs.
 Paths below assume the repository root is `<repo>` and the Xcode project is created in
 `<repo>/xcode/`, so that `$(SRCROOT)` = `<repo>/xcode`.
 
-## 1. Create the project
+## Shortcut: generate the project instead of creating it by hand
+
+`xcode/project.yml` is an [XcodeGen](https://github.com/yonaskolb/XcodeGen) spec that encodes every
+setting below (sources, bridging header, header search paths, C++17, macOS 14.0, `-ffp-contract=off`,
+sandbox entitlement, universal build):
+
+```bash
+brew install xcodegen
+cd xcode && xcodegen generate     # creates xcode/MacQC.xcodeproj; open it and Run
+```
+
+Then skip to step 5. The generated project is git-ignored. GitHub Actions
+(`.github/workflows/app.yml`) uses the same spec to compile-check the app on a macOS runner and to
+publish a universal, ad-hoc signed `MacQC.app` as the workflow artifact `MacQC-app`.
+To run that downloaded app, unzip it and either right-click ▸ Open once, or run
+`xattr -dr com.apple.quarantine MacQC.app` (it is not notarized).
+
+## 1. Create the project (manual route)
 
 1. Xcode ▸ *File ▸ New ▸ Project…* ▸ **macOS** ▸ **App** ▸ Next.
 2. Product Name **MacQC**, Interface **SwiftUI**, Language **Swift**, Testing System *None*,
