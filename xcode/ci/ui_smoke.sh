@@ -204,6 +204,20 @@ with_timeout 90 osascript "$OUT/tab.applescript" "__SCAN__" | grep -E "CLICKED|N
 sleep 8
 shot "dark-05-curve-after-scan"
 
+# --- appearance switching: system dark, then choose Light / Dark / System in the app ------
+echo "== appearance switching (system dark)"
+pkill -x MacQC || true
+sleep 3
+with_timeout 30 osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to true' || echo "could not set system dark mode"
+sleep 3
+open -n "$APP"
+sleep 15
+click_shot "sw-1-system-follows-dark" "Summary"
+click_shot "sw-2-choose-light" "Light"
+click_shot "sw-3-choose-dark" "Dark"
+click_shot "sw-4-choose-system" "System"
+with_timeout 30 osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to false' || true
+
 # Print downscaled screenshots into the log as base64 JPEG so they can be read through the
 # GitHub API without downloading the artifact. Decode: lines between IMG_BEGIN/IMG_END.
 echo "== screenshots (base64 JPEG)"
