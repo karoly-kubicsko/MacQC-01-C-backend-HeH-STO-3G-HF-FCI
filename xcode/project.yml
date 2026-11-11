@@ -1,14 +1,14 @@
-# XcodeGen spec for the MacQC app (https://github.com/yonaskolb/XcodeGen).
+# XcodeGen spec for the PsiLab app (https://github.com/yonaskolb/XcodeGen).
 #
 # It encodes the settings from app/SETUP.md so that the Xcode project can be generated
 # instead of created by hand:
 #
 #     brew install xcodegen
-#     cd xcode && xcodegen generate     # creates xcode/MacQC.xcodeproj
+#     cd xcode && xcodegen generate     # creates xcode/PsiLab.xcodeproj
 #
 # GitHub Actions (.github/workflows/app.yml) uses it to compile-check the app and to build a
-# universal (arm64 + x86_64) MacQC.app artifact. The generated project is not committed.
-name: MacQC
+# universal (arm64 + x86_64) PsiLab.app artifact. The generated project is not committed.
+name: PsiLab
 
 options:
   deploymentTarget:
@@ -16,7 +16,7 @@ options:
   createIntermediateGroups: true
 
 targets:
-  MacQC:
+  PsiLab:
     type: application
     platform: macOS
     deploymentTarget: "14.0"
@@ -34,19 +34,19 @@ targets:
         buildPhase: none
 
     entitlements:
-      path: MacQC.entitlements
+      path: PsiLab.entitlements
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.files.user-selected.read-write: true
 
     settings:
       base:
-        PRODUCT_NAME: MacQC
-        PRODUCT_BUNDLE_IDENTIFIER: org.macqc.MacQC
+        PRODUCT_NAME: PsiLab
+        PRODUCT_BUNDLE_IDENTIFIER: org.psilab.PsiLab
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: MacQC
+        INFOPLIST_KEY_CFBundleDisplayName: PsiLab
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
         MACOSX_DEPLOYMENT_TARGET: "14.0"
         # Swift: language mode 6, with the Xcode 26 template's concurrency defaults.

@@ -1,10 +1,10 @@
 #!/bin/bash
-# UI smoke test for the built MacQC.app on a GitHub macOS runner.
+# UI smoke test for the built PsiLab.app on a GitHub macOS runner.
 # Launches the app, screenshots each tab, dumps the visible text of every tab to the log,
 # runs the potential-curve scan and checks the Edit/File menu commands.
 # Never fails the job: it only gathers evidence (screenshots + text) for review.
 #
-# Usage: ui_smoke.sh path/to/MacQC.app output-dir
+# Usage: ui_smoke.sh path/to/PsiLab.app output-dir
 
 APP="$1"
 OUT="$2"
@@ -16,7 +16,7 @@ on run argv
     set targetName to item 1 of argv
     set logText to ""
     tell application "System Events"
-        tell process "MacQC"
+        tell process "PsiLab"
             set frontmost to true
             if targetName is "__TREE__" then
                 -- accessibility tree (everything except static text), to find how tabs are exposed
@@ -131,7 +131,7 @@ dump_tab() {   # $1 = file prefix, $2 = element to click ("" = none)
 echo "== launching $APP"
 open -n "$APP"
 sleep 15
-pgrep -x MacQC >/dev/null && echo "MacQC process is running" || echo "MacQC process NOT running"
+pgrep -x PsiLab >/dev/null && echo "PsiLab process is running" || echo "PsiLab process NOT running"
 
 shot "00-launch"
 echo "::group::accessibility tree"
@@ -156,7 +156,7 @@ echo "== menu commands"
 echo "::group::menu items"
 cat > "$OUT/menus.applescript" <<'APPLESCRIPT'
 tell application "System Events"
-    tell process "MacQC"
+    tell process "PsiLab"
         set out to ""
         repeat with m in {"File", "Edit"}
             try
@@ -175,7 +175,7 @@ echo "== Edit > Copy Summary as Text"
 pbcopy < /dev/null
 cat > "$OUT/copy.applescript" <<'APPLESCRIPT'
 tell application "System Events"
-    tell process "MacQC"
+    tell process "PsiLab"
         click menu item "Copy Summary as Text" of menu 1 of menu bar item "Edit" of menu bar 1
     end tell
 end tell
@@ -188,7 +188,7 @@ echo "::endgroup::"
 
 # --- dark mode pass: relaunch with the in-app appearance forced to dark ---------------
 echo "== dark mode pass"
-pkill -x MacQC || true
+pkill -x PsiLab || true
 sleep 3
 open -n "$APP" --args -appearanceChoice dark
 sleep 15
@@ -216,5 +216,5 @@ for f in "$OUT"/*.png; do
     echo "IMG_END $name"
 done
 
-pkill -x MacQC || true
+pkill -x PsiLab || true
 exit 0
