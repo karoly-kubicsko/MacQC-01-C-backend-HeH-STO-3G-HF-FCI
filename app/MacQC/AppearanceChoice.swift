@@ -4,7 +4,7 @@
 //
 //  In-app appearance override: follow the system (default), or force light / dark.
 //  Stored in UserDefaults under the key `appearanceChoice` (so it can also be set on the
-//  command line: MacQC.app --args -appearanceChoice dark).
+//  command line: open ΨLab.app --args -appearanceChoice dark).
 //
 
 import SwiftUI
