@@ -46,11 +46,24 @@ on run argv
 end run
 APPLESCRIPT
 
+# macOS has no `timeout`: run a command and kill it after N seconds.
+with_timeout() {
+    local secs="$1"; shift
+    "$@" &
+    local pid=$!
+    ( sleep "$secs"; kill "$pid" 2>/dev/null ) &
+    local watchdog=$!
+    wait "$pid"
+    local rc=$?
+    kill "$watchdog" 2>/dev/null
+    return $rc
+}
+
 shot() { screencapture -x "$OUT/$1.png" || echo "screencapture failed for $1"; }
 
 dump_tab() {   # $1 = file prefix, $2 = element to click ("" = none)
     echo "::group::UI text: $1"
-    timeout 120 osascript "$OUT/tab.applescript" "$2" | tee "$OUT/$1.txt"
+    with_timeout 120 osascript "$OUT/tab.applescript" "$2" | tee "$OUT/$1.txt"
     echo "::endgroup::"
     shot "$1"
 }
@@ -67,13 +80,13 @@ dump_tab "03-full-ci" "Full CI"
 dump_tab "04-potential-curve" "Potential curve"
 
 echo "== running the potential-curve scan"
-timeout 120 osascript "$OUT/tab.applescript" "Run scan" > /dev/null
+with_timeout 120 osascript "$OUT/tab.applescript" "Run scan" > /dev/null
 sleep 10
 dump_tab "05-curve-after-scan" ""
 
 echo "== menu commands"
 echo "::group::menu items"
-timeout 60 osascript <<'APPLESCRIPT' | tee "$OUT/menus.txt"
+with_timeout 60 osascript <<'APPLESCRIPT' | tee "$OUT/menus.txt"
 tell application "System Events"
     tell process "MacQC"
         set out to ""
@@ -91,7 +104,7 @@ echo "::endgroup::"
 
 echo "== Edit > Copy Summary as Text"
 pbcopy < /dev/null
-timeout 60 osascript <<'APPLESCRIPT' || echo "could not click the menu item"
+with_timeout 60 osascript <<'APPLESCRIPT' || echo "could not click the menu item"
 tell application "System Events"
     tell process "MacQC"
         click menu item "Copy Summary as Text" of menu 1 of menu bar item "Edit" of menu bar 1
