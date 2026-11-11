@@ -164,6 +164,11 @@ For the later SwiftUI target (no Swift code is part of this repository yet):
    Run it off the main thread for scans; the library keeps no global state, so concurrent calls
    are safe.
 
+## macOS app
+
+The SwiftUI front end lives in `app/MacQC/`; see [`app/SETUP.md`](app/SETUP.md) for the step-by-step
+Xcode setup. The backend's behaviour is unchanged by it.
+
 ## Continuous integration
 
 `.github/workflows/backend.yml` builds and runs the tests on `ubuntu-latest` only (Python 3 +
