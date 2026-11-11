@@ -14,33 +14,71 @@ mkdir -p "$OUT"
 cat > "$OUT/tab.applescript" <<'APPLESCRIPT'
 on run argv
     set targetName to item 1 of argv
+    set logText to ""
     tell application "System Events"
         tell process "MacQC"
             set frontmost to true
-            if targetName is not "" then
+            if targetName is "__TREE__" then
+                -- accessibility tree (everything except static text), to find how tabs are exposed
                 set els to entire contents of window 1
                 repeat with e in els
                     try
-                        if (name of e) is targetName then
-                            if (role of e) is in {"AXRadioButton", "AXButton", "AXTab"} then
+                        set r to role of e
+                        if r is not "AXStaticText" then
+                            set n to ""
+                            set d to ""
+                            try
+                                set n to name of e
+                            end try
+                            try
+                                set d to description of e
+                            end try
+                            set logText to logText & r & " | " & n & " | " & d & linefeed
+                        end if
+                    end try
+                end repeat
+                return logText
+            end if
+            if targetName is not "" then
+                set clicked to false
+                set els to entire contents of window 1
+                repeat with e in els
+                    if clicked then exit repeat
+                    try
+                        set r to role of e
+                        if r is not "AXStaticText" and r is not "AXImage" and r is not "AXGroup" and r is not "AXScrollArea" then
+                            set n to ""
+                            set d to ""
+                            set t to ""
+                            try
+                                set n to name of e
+                            end try
+                            try
+                                set d to description of e
+                            end try
+                            try
+                                set t to title of e
+                            end try
+                            if n is targetName or d is targetName or t is targetName then
                                 click e
-                                exit repeat
+                                set clicked to true
+                                set logText to logText & "CLICKED " & r & " | " & n & " | " & d & linefeed
                             end if
                         end if
                     end try
                 end repeat
+                if not clicked then set logText to logText & "NOT FOUND: " & targetName & linefeed
             end if
             delay 2
-            set resultText to ""
             set els to entire contents of window 1
             repeat with e in els
                 try
                     if (role of e) is "AXStaticText" then
-                        set resultText to resultText & (value of e as text) & linefeed
+                        set logText to logText & (value of e as text) & linefeed
                     end if
                 end try
             end repeat
-            return resultText
+            return logText
         end tell
     end tell
 end run
@@ -51,7 +89,7 @@ with_timeout() {
     local secs="$1"; shift
     "$@" &
     local pid=$!
-    ( sleep "$secs"; kill "$pid" 2>/dev/null ) &
+    ( sleep "$secs"; kill "$pid" 2>/dev/null ) > /dev/null 2>&1 &
     local watchdog=$!
     wait "$pid"
     local rc=$?
@@ -74,6 +112,9 @@ sleep 15
 pgrep -x MacQC >/dev/null && echo "MacQC process is running" || echo "MacQC process NOT running"
 
 shot "00-launch"
+echo "::group::accessibility tree"
+with_timeout 40 osascript "$OUT/tab.applescript" "__TREE__" | tee "$OUT/tree.txt"
+echo "::endgroup::"
 dump_tab "01-summary" ""
 dump_tab "02-hartree-fock" "Hartree–Fock"
 dump_tab "03-full-ci" "Full CI"
