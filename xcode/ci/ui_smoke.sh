@@ -121,8 +121,13 @@ dump_tab "03-full-ci" "Full CI"
 dump_tab "04-potential-curve" "Potential curve"
 
 echo "== running the potential-curve scan"
-with_timeout 40 osascript "$OUT/tab.applescript" "Run scan" > /dev/null
-sleep 10
+echo "::group::accessibility tree (potential curve tab)"
+with_timeout 40 osascript "$OUT/tab.applescript" "__TREE__" | tee "$OUT/tree-curve.txt"
+echo "::endgroup::"
+echo "::group::click Run scan"
+with_timeout 90 osascript "$OUT/tab.applescript" "Run scan" | grep -E "CLICKED|NOT FOUND" 
+echo "::endgroup::"
+sleep 8
 dump_tab "05-curve-after-scan" ""
 
 echo "== menu commands"
