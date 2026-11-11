@@ -1,4 +1,4 @@
-# PsiLab app – Xcode setup
+# ΨLab app – Xcode setup
 
 The SwiftUI sources live in `app/MacQC/`. No `.xcodeproj` is committed; you create it once with
 the steps below (Xcode 26, macOS 14 or later as deployment target). The app is a universal binary:
@@ -20,10 +20,11 @@ cd xcode && xcodegen generate     # creates xcode/PsiLab.xcodeproj; open it and 
 
 Then skip to step 5. The generated project is git-ignored. GitHub Actions
 (`.github/workflows/app.yml`) uses the same spec to compile-check the app on a macOS runner and to
-publish a universal, ad-hoc signed `PsiLab.app` as the workflow artifact `PsiLab-app`.
+publish a universal, ad-hoc signed `ΨLab.app` as the workflow artifact `PsiLab-app`.
 To run it: download `PsiLab-app` from the run's *Artifacts* section; GitHub delivers it as a zip,
-which contains `PsiLab.app.zip`; unzip that too to get `PsiLab.app`. It is not notarized, so either
-right-click ▸ Open once, or run `xattr -dr com.apple.quarantine PsiLab.app`.
+which contains `ΨLab.app.zip`; unzip that too to get `ΨLab.app`. It is not notarized, so either
+right-click ▸ Open once, or run `xattr -dr com.apple.quarantine ΨLab.app` (type the command up to
+the space, then drag the app onto the Terminal window to insert its path).
 
 ## 1. Create the project (manual route)
 
@@ -58,6 +59,8 @@ Select the project ▸ target **PsiLab** ▸ *Build Settings* ▸ "All" and "Com
 | Setting | Value |
 | --- | --- |
 | macOS Deployment Target (`MACOSX_DEPLOYMENT_TARGET`) | **14.0** |
+| Product Name (`PRODUCT_NAME`) | `ΨLab` (the visible app name) |
+| Product Module Name (`PRODUCT_MODULE_NAME`) | `PsiLab` (keeps the Swift module name ASCII) |
 | Objective-C Bridging Header (`SWIFT_OBJC_BRIDGING_HEADER`) | `$(SRCROOT)/../app/MacQC/MacQC-Bridging-Header.h` |
 | Header Search Paths (`HEADER_SEARCH_PATHS`) | `$(SRCROOT)/../backend/include` and `$(SRCROOT)/../third_party` |
 | C++ Language Dialect (`CLANG_CXX_LANGUAGE_STANDARD`) | **C++17** (`c++17`; GNU++17 also works) |
