@@ -20,8 +20,8 @@ cd xcode && xcodegen generate     # creates xcode/PsiLab.xcodeproj; open it and 
 
 Then skip to step 5. The generated project is git-ignored. GitHub Actions
 (`.github/workflows/app.yml`) uses the same spec to compile-check the app on a macOS runner and to
-publish a universal, ad-hoc signed `ΨLab.app` as the workflow artifact `PsiLab-app`.
-To run it: download `PsiLab-app` from the run's *Artifacts* section; GitHub delivers it as a zip,
+publish a universal, ad-hoc signed `ΨLab.app` as the workflow artifact `ΨLab-app`.
+To run it: download `ΨLab-app` from the run's *Artifacts* section; GitHub delivers it as a zip,
 which contains `ΨLab.app.zip`; unzip that too to get `ΨLab.app`. It is not notarized, so either
 right-click ▸ Open once, or run `xattr -dr com.apple.quarantine ΨLab.app` (type the command up to
 the space, then drag the app onto the Terminal window to insert its path).

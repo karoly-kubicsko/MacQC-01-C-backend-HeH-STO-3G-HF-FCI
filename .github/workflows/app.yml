@@ -68,7 +68,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PsiLab-app
+          name: ΨLab-app
           path: ΨLab.app.zip
 
       # Launch the app on the runner, screenshot each tab and dump the visible text.
