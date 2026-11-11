@@ -116,7 +116,7 @@ struct PotentialCurveView: View {
                     .symbolSize(110)
                 }
             }
-            .chartForegroundStyleScale(["HF": Color.blue, "FCI": Color.orange])
+            .chartForegroundStyleScale(["HF": Color.orange, "FCI": Color.blue])
             .chartXScale(domain: xDomain)
             .chartYScale(domain: yDomain)
             .chartXAxisLabel("R (bohr)")
@@ -144,11 +144,11 @@ struct PotentialCurveView: View {
     // MARK: Minima markers and readout
 
     private func symbol(for method: String) -> BasicChartSymbolShape {
-        method == "HF" ? .circle : .diamond
+        method == "HF" ? .diamond : .circle
     }
 
     private func color(for method: String) -> Color {
-        method == "HF" ? .blue : .orange
+        method == "HF" ? .orange : .blue
     }
 
     /// Bottom-right normally (the curves level off high up at large R); bottom-left if a
@@ -163,7 +163,7 @@ struct PotentialCurveView: View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(model.curveMinima) { minimum in
                 HStack(spacing: 6) {
-                    Image(systemName: minimum.method == "HF" ? "circle.fill" : "diamond.fill")
+                    Image(systemName: minimum.method == "HF" ? "diamond.fill" : "circle.fill")
                         .font(.caption2)
                         .foregroundStyle(color(for: minimum.method))
                     Text(String(format: "%@ min: R = %.3f bohr, E = %.6f E_h",
