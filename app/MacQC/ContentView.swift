@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
     @Bindable var model: AppModel
+    @AppStorage(AppearanceChoice.storageKey) private var appearanceRaw: String = AppearanceChoice.system.rawValue
 
     var body: some View {
         NavigationSplitView {
@@ -18,6 +19,7 @@ struct ContentView: View {
             DetailView(model: model)
         }
         .navigationTitle("MacQC")
+        .preferredColorScheme((AppearanceChoice(rawValue: appearanceRaw) ?? .system).colorScheme)
         .task {
             // Show a result right away with the Szabo–Ostlund defaults.
             if model.result == nil {
