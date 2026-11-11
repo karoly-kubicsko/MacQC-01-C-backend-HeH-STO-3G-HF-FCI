@@ -39,6 +39,28 @@ on run argv
                 end repeat
                 return logText
             end if
+            if targetName is "__SCAN__" then
+                -- the Run scan button has no accessible name: click the first AXButton
+                -- that follows the "Step (bohr)" pop-up in the tree
+                set els to entire contents of window 1
+                set seenStep to false
+                repeat with e in els
+                    try
+                        set r to role of e
+                        set n to ""
+                        try
+                            set n to name of e
+                        end try
+                        if r is "AXPopUpButton" and n is "Step (bohr)" then
+                            set seenStep to true
+                        else if seenStep and r is "AXButton" then
+                            click e
+                            return "CLICKED button after Step pop-up"
+                        end if
+                    end try
+                end repeat
+                return "NOT FOUND: button after Step pop-up"
+            end if
             if targetName is not "" then
                 set clicked to false
                 set els to entire contents of window 1
@@ -125,7 +147,7 @@ echo "::group::accessibility tree (potential curve tab)"
 with_timeout 40 osascript "$OUT/tab.applescript" "__TREE__" | tee "$OUT/tree-curve.txt"
 echo "::endgroup::"
 echo "::group::click Run scan"
-with_timeout 90 osascript "$OUT/tab.applescript" "Run scan" | grep -E "CLICKED|NOT FOUND" 
+with_timeout 90 osascript "$OUT/tab.applescript" "__SCAN__" 
 echo "::endgroup::"
 sleep 8
 dump_tab "05-curve-after-scan" ""
