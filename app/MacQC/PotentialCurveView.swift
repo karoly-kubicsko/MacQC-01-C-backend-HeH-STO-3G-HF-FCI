@@ -59,6 +59,7 @@ struct PotentialCurveView: View {
                     Label("Run scan", systemImage: "play.fill")
                 }
                 .prominentActionStyle()
+                .accessibilityLabel("Run scan")
                 .disabled(model.isScanning)
 
                 if model.isScanning {
@@ -66,6 +67,7 @@ struct PotentialCurveView: View {
                         model.cancelScan()
                     }
                     .secondaryActionStyle()
+                    .accessibilityLabel("Stop scan")
 
                     ProgressView(value: model.scanProgress)
                         .progressViewStyle(.linear)
