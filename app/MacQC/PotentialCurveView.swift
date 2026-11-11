@@ -124,12 +124,30 @@ struct PotentialCurveView: View {
                 }
             }
             .chartForegroundStyleScale(["HF": Color.blue, "FCI": Color.orange])
+            .chartXScale(domain: xDomain)
+            .chartYScale(domain: yDomain)
             .chartXAxisLabel("R (bohr)")
             .chartYAxisLabel("Total energy (E_h)")
             .chartLegend(position: .top, alignment: .trailing)
             .frame(minHeight: 380)
         }
         .dataPanel()
+    }
+
+    // MARK: Axis ranges
+
+    /// Swift Charts would otherwise include 0 on the energy axis and squash the curves.
+    private var xDomain: ClosedRange<Double> {
+        let values = model.curvePoints.map { $0.R }
+        guard let lo = values.min(), let hi = values.max(), lo < hi else { return 0.8...5.0 }
+        return lo...hi
+    }
+
+    private var yDomain: ClosedRange<Double> {
+        let values = model.curveSamples.map { $0.energy }
+        guard let lo = values.min(), let hi = values.max(), lo < hi else { return -3.0 ... -2.0 }
+        let pad = max((hi - lo) * 0.12, 0.005)
+        return (lo - pad)...(hi + pad)
     }
 
     // MARK: Minima
