@@ -118,5 +118,17 @@ echo "::group::clipboard after Copy Summary as Text"
 pbpaste | tee "$OUT/clipboard-summary.txt"
 echo "::endgroup::"
 
+# Print downscaled screenshots into the log as base64 JPEG so they can be read through the
+# GitHub API without downloading the artifact. Decode: lines between IMG_BEGIN/IMG_END.
+echo "== screenshots (base64 JPEG)"
+for f in "$OUT"/*.png; do
+    name=$(basename "$f" .png)
+    sips -s format jpeg -s formatOptions 60 -Z 1100 "$f" --out "$OUT/$name.jpg" > /dev/null 2>&1 || continue
+    echo "IMG_BEGIN $name"
+    base64 -i "$OUT/$name.jpg" | tr -d '\n'
+    echo
+    echo "IMG_END $name"
+done
+
 pkill -x MacQC || true
 exit 0
