@@ -112,11 +112,13 @@ struct PotentialCurveView: View {
                         y: .value("Total energy (E_h)", minimum.energy)
                     )
                     .foregroundStyle(by: .value("Method", minimum.method))
-                    .symbol(symbol(for: minimum.method))
+                    .symbol(by: .value("Method", minimum.method))
                     .symbolSize(110)
                 }
             }
             .chartForegroundStyleScale(["HF": Color.orange, "FCI": Color.blue])
+            // Same shapes as the minimum markers, so the legend matches the plot.
+            .chartSymbolScale(["HF": BasicChartSymbolShape.diamond, "FCI": BasicChartSymbolShape.circle])
             .chartXScale(domain: xDomain)
             .chartYScale(domain: yDomain)
             .chartXAxisLabel("R (Å)")
@@ -142,10 +144,6 @@ struct PotentialCurveView: View {
     }
 
     // MARK: Minima markers and readout
-
-    private func symbol(for method: String) -> BasicChartSymbolShape {
-        method == "HF" ? .diamond : .circle
-    }
 
     private func color(for method: String) -> Color {
         method == "HF" ? .orange : .blue
