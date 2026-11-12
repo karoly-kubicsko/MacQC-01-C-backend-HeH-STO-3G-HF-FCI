@@ -1,8 +1,14 @@
 // ΨLab terminal version: plain-text input file -> plain-text output file.
 //
 // Input: one "key = value" per line, '#' starts a comment. Keys (case-insensitive):
-//   basis      STO-1G | STO-2G | STO-3G
-//   R          bond length, a number optionally followed by a unit: bohr (default) or angstrom
+//   molecule   HeH+ (default) | H2 | LiH | H2O
+//   basis      HeH+: STO-1G | STO-2G | STO-3G; others: aug-cc-pVXZ, aug-cc-pCVXZ (X = D, T, Q, 5)
+//   R          bond length (H2O: O-H), a number optionally followed by a unit: bohr (default)
+//              or angstrom; default for H2, LiH, H2O: the experimental equilibrium value
+//   angle      H-O-H angle in degrees (H2O; default 104.52)
+//   method     RHF (H2, LiH, H2O)
+//   threads, memory (MB or GB), basis_dir      (H2, LiH, H2O)
+//   zeta_He, zeta_H, exact_erf, scan, scan_step (HeH+ only):
 //   zeta_He    Slater exponent of He          zeta_H     Slater exponent of H
 //   exact_erf  yes | no                       scan       yes | no
 //   scan_step  step of the potential-curve scan (bohr), R = 0.8 ... 5.0 bohr
@@ -31,6 +37,7 @@ struct Settings {
     macqc::Input input;     // R always in bohr
     bool scan = false;
     double scanStep = 0.1;  // bohr
+    bool rGiven = false;    // R was in the input (else the molecule's default)
 };
 
 // Parses the text input. Throws std::runtime_error("line N: ...") on any problem,
@@ -62,5 +69,11 @@ struct RunResult {
 
 // Runs the single-point calculation (and the scan if requested) and formats the output.
 RunResult run_to_text(const Settings& settings);
+
+// H2, LiH, H2O: size of the calculation, time estimate and warnings, without computing
+// (empty for HeH+).
+std::string estimate_text(const Settings& settings);
+// The warnings of the estimate (e.g. a long calculation), for the terminal.
+std::vector<std::string> estimate_warnings(const Settings& settings);
 
 }  // namespace psilab

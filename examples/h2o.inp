@@ -1,0 +1,8 @@
+# ΨLab input file: water, restricted Hartree-Fock
+# One 'key = value' per line; '#' starts a comment.
+
+molecule = H2O
+basis    = aug-cc-pVTZ        # aug-cc-pVXZ or aug-cc-pCVXZ, X = D, T, Q, 5
+R        = 0.9572 angstrom    # O-H bond length (bohr or angstrom)
+angle    = 104.52             # H-O-H angle in degrees
+method   = RHF

@@ -79,6 +79,38 @@ int main() {
     CHECK(contains(r.text, "FCI minimum (parabolic fit): R = 0.7397 \xC3\x85 (1.3978 bohr), E = -2.88223178 E_h"));
     CHECK(!contains(r.text, "failed point"));
 
+    // General molecules: molecule, basis set, geometry defaults, keys per molecule.
+    const psilab::Settings w = psilab::parse_input_text("molecule = water\nbasis = AUG-CC-PVTZ\n");
+    CHECK(w.input.molecule == "H2O" && w.input.basis == "aug-cc-pVTZ");
+    CHECK(std::fabs(w.input.R - 0.9572 / psilab::kBohrToAngstrom) < 1e-12 && w.input.angle == 104.52);
+    const psilab::Settings w2 = psilab::parse_input_text(
+        "molecule = H2O\nR = 1.0 angstrom\nangle = 100\nmethod = rhf\nthreads = 2\nmemory = 2 GB\n");
+    CHECK(std::fabs(w2.input.R - 1.0 / psilab::kBohrToAngstrom) < 1e-12 && w2.input.angle == 100.0);
+    CHECK(w2.input.threads == 2 && w2.input.memoryMB == 2048.0 && w2.input.basis == "aug-cc-pVDZ");
+    CHECK(std::fabs(psilab::parse_input_text("molecule = LiH\n").input.R - 1.5949 / psilab::kBohrToAngstrom) < 1e-12);
+    CHECK(rejects("molecule = CH4\n", "molecule must be HeH+, H2, LiH or H2O"));
+    CHECK(rejects("molecule = H2\nzeta_H = 1.2\n", "line 2: 'zeta_H' applies to HeH+ only"));
+    CHECK(rejects("molecule = H2\nangle = 100\n", "applies to H2O only"));
+    CHECK(rejects("angle = 100\n", "applies to H2O only"));
+    CHECK(rejects("method = RHF\n", "HeH+ always runs Hartree-Fock and Full CI"));
+    CHECK(rejects("molecule = H2O\nbasis = STO-3G\n", "basis must be one of aug-cc-pVDZ"));
+    CHECK(rejects("molecule = H2\nmethod = CCSD\n", "method must be RHF"));
+    CHECK(rejects("molecule = H2O\nangle = 10\n", "angle must be between 30 and 180"));
+    CHECK(rejects("molecule = H2\nthreads = 1.5\n", "threads must be an integer"));
+    CHECK(rejects("molecule = H2\nmemory = 3 TB\n", "memory unit"));
+
+    const psilab::RunResult h2 = psilab::run_to_text(psilab::parse_input_text("molecule = H2\nbasis = aug-cc-pVDZ\n"));
+    CHECK(h2.error.empty());
+    CHECK(contains(h2.text, "\xCE\xA8Lab \xE2\x80\x93 H2, RHF/aug-cc-pVDZ"));
+    CHECK(contains(h2.text, "total energy:         -1.1287937367 E_h"));
+    CHECK(contains(h2.text, "18 basis functions (H [3s2p])"));
+    CHECK(contains(h2.text, "DETAILED REPORT"));
+    CHECK(contains(psilab::estimate_text(psilab::parse_input_text("molecule = H2O\nbasis = aug-cc-pCVDZ\n")),
+                   "aug-cc-pCVDZ is not defined for H"));
+    const psilab::RunResult lih =
+        psilab::run_to_text(psilab::parse_input_text("molecule = LiH\nbasis = aug-cc-pCV5Z\n"));
+    CHECK(lih.text.empty() && contains(lih.error, "not available for Li"));
+
     // Without scan: no curve section.
     psilab::Settings single = ex;
     single.scan = false;

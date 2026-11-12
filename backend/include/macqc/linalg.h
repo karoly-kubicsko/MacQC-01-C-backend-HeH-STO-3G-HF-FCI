@@ -57,4 +57,9 @@ struct EigenResult {
 };
 EigenResult jacobi_eigen(const Matrix& symmetric);
 
+// Eigen-decomposition of a real symmetric matrix by Householder tridiagonalisation
+// and the implicit QL algorithm (EISPACK tred2/tql2, as in the public-domain JAMA).
+// O(n^3); used for the general molecules. Eigenvalues ascending, vectors in columns.
+EigenResult symmetric_eigen(const Matrix& symmetric);
+
 }  // namespace macqc
