@@ -32,8 +32,9 @@ the space, then drag the app onto the Terminal window to insert its path).
 2. Product Name **PsiLab**, Interface **SwiftUI**, Language **Swift**, Testing System *None*,
    Storage *None*. Next.
 3. Choose (create) the folder `<repo>/xcode` and **uncheck** "Create Git repository". Create.
-4. In the Project navigator delete the template's `PsiLabApp.swift` and `ContentView.swift`
-   (*Move to Trash*). Keep `Assets.xcassets` (and the template's entitlements file).
+4. In the Project navigator delete the template's `PsiLabApp.swift`, `ContentView.swift` and
+   `Assets.xcassets` (*Move to Trash*); the app's own `Assets.xcassets` (with the ΨLab icon) is
+   added in section 2. Keep the template's entitlements file.
 
 ## 2. Add the sources
 
@@ -42,7 +43,7 @@ Use *File ▸ Add Files to "PsiLab"…* (or drag from Finder). Always: **"Copy i
 
 | What | Files | Target membership |
 | --- | --- | --- |
-| App | everything in `app/MacQC/` (12 `.swift` files and `MacQC-Bridging-Header.h`) | `.swift`: PsiLab; header: none needed |
+| App | everything in `app/MacQC/` (12 `.swift` files, `MacQC-Bridging-Header.h` and `Assets.xcassets`) | `.swift`: PsiLab; header: none needed |
 | Backend sources | `backend/src/linalg.cpp`, `integrals.cpp`, `report.cpp`, `scf.cpp`, `fci.cpp`, `calculation.cpp`, `api.cpp` | PsiLab |
 | Backend headers | `backend/include/macqc/*.h` | (headers only) |
 | JSON library | `third_party/nlohmann/json.hpp` | (header only) |
