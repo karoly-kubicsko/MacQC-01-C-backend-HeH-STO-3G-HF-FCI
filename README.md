@@ -1,5 +1,8 @@
 # ΨLab — a native macOS quantum-chemistry app
 
+**Version 2.0** — terminal version for Linux (`psilab`), bond length in Å and bohr, plain-text
+export, app icon. (Version 1.0: the macOS app with Hartree–Fock, Full CI and potential curves.)
+
 ΨLab computes the HeH⁺ molecular ion in a minimal STO-nG basis (n = 1, 2, 3): a restricted
 Hartree–Fock calculation and then Full CI on top of it. It shows the energies, integrals and
 matrices, the CI vector and the spin of every state, and scans the potential-energy curve from

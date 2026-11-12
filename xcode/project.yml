@@ -45,8 +45,8 @@ targets:
         PRODUCT_NAME: "ΨLab"
         PRODUCT_MODULE_NAME: PsiLab
         PRODUCT_BUNDLE_IDENTIFIER: org.psilab.PsiLab
-        MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "2.0"
+        CURRENT_PROJECT_VERSION: "2"
         GENERATE_INFOPLIST_FILE: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_CFBundleDisplayName: "ΨLab"
