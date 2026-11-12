@@ -18,12 +18,13 @@ void usage(const char* prog) {
                  "  %s INPUT [OUTPUT]   run INPUT, write the results to OUTPUT\n"
                  "                      (default: INPUT with the extension replaced by .out)\n"
                  "  %s --example        print a commented example input file\n"
+                 "  %s --version        print the version\n"
                  "  %s --help           this help\n\n"
                  "Input: one 'key = value' per line, '#' starts a comment. Keys:\n"
                  "  basis = STO-1G | STO-2G | STO-3G      R = <number> [bohr | angstrom]\n"
                  "  zeta_He = <number>   zeta_H = <number>   exact_erf = yes | no\n"
                  "  scan = yes | no      scan_step = <bohr>  (potential curve, R = 0.8 ... 5.0 bohr)\n",
-                 prog, prog, prog);
+                 prog, prog, prog, prog);
 }
 
 std::string default_output_name(const std::string& input) {
@@ -41,6 +42,10 @@ int main(int argc, char** argv) {
     if (argc < 2 || !std::strcmp(argv[1], "-h") || !std::strcmp(argv[1], "--help")) {
         usage(argv[0]);
         return argc < 2 ? 2 : 0;
+    }
+    if (!std::strcmp(argv[1], "--version")) {
+        std::printf("\xCE\xA8Lab %s\n", psilab::kVersion);
+        return 0;
     }
     if (!std::strcmp(argv[1], "--example")) {
         std::cout << psilab::example_input();
