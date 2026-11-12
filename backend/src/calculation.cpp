@@ -19,6 +19,7 @@ MolecularInput molecular_input(const Input& in) {
     m.basis_directory = in.basisDirectory;
     m.threads = in.threads;
     m.memory_mb = in.memoryMB;
+    m.fci_memory_mb = in.fciMemoryMB;
     m.max_iter = in.scfMaxIter;
     m.energy_tol = in.energyConvergence;
     m.gradient_tol = in.gradientConvergence;
@@ -34,6 +35,7 @@ Output run_molecular_calculation(const Input& in) {
         out.input.R = out.molecular->input.R;
         out.input.molecule = out.molecular->input.molecule;
         out.input.basis = out.molecular->input.basis;
+        out.input.method = out.molecular->input.method;
         if (in.estimateOnly) {
             out.report = molecular_report(*out.molecular);
             return out;
@@ -45,6 +47,8 @@ Output run_molecular_calculation(const Input& in) {
             out.error = "SCF did not converge in " + std::to_string(h.iterations) + " iterations";
         else if (!std::isfinite(h.total_energy))
             out.error = "SCF produced non-finite energies";
+        else if (out.molecular->fci && !out.molecular->fci->converged)
+            out.error = "Full CI did not converge in " + std::to_string(out.molecular->fci->iterations) + " iterations";
     } catch (const std::exception& e) {
         out.error = e.what();
     } catch (...) {

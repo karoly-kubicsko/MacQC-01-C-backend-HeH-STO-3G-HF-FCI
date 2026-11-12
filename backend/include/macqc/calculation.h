@@ -29,10 +29,11 @@ struct Input {
     // General molecules (molecule != "HeH+").
     std::string basis = "aug-cc-pVDZ";
     double angle = kDefaultWaterAngle;  // H-O-H angle (degrees), H2O only
-    std::string method = "RHF";
+    std::string method = "RHF";         // "RHF" or "FCI"
     std::string basisDirectory;         // "" -> default_basis_directory()
     int threads = 0;                    // 0 -> all hardware threads
     double memoryMB = 1024.0;           // limit for keeping the two-electron integrals in memory
+    double fciMemoryMB = 4096.0;        // hard memory limit of a Full CI
     int scfMaxIter = 100;
     double energyConvergence = 1.0e-10;
     double gradientConvergence = 1.0e-7;

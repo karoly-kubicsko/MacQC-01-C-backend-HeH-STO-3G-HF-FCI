@@ -94,7 +94,10 @@ int main() {
     CHECK(rejects("angle = 100\n", "applies to H2O only"));
     CHECK(rejects("method = RHF\n", "HeH+ always runs Hartree-Fock and Full CI"));
     CHECK(rejects("molecule = H2O\nbasis = STO-3G\n", "basis must be one of aug-cc-pVDZ"));
-    CHECK(rejects("molecule = H2\nmethod = CCSD\n", "method must be RHF"));
+    CHECK(rejects("molecule = H2\nmethod = CCSD\n", "method must be RHF or FCI"));
+    CHECK(rejects("molecule = H2\nfci_memory = 1 PB\n", "fci_memory unit"));
+    const psilab::Settings fs = psilab::parse_input_text("molecule = H2\nmethod = Full-CI\nfci_memory = 2 GB\n");
+    CHECK(fs.input.method == "FCI" && fs.input.fciMemoryMB == 2048.0);
     CHECK(rejects("molecule = H2O\nangle = 10\n", "angle must be between 30 and 180"));
     CHECK(rejects("molecule = H2\nthreads = 1.5\n", "threads must be an integer"));
     CHECK(rejects("molecule = H2\nmemory = 3 TB\n", "memory unit"));
@@ -107,6 +110,18 @@ int main() {
     CHECK(contains(h2.text, "DETAILED REPORT"));
     CHECK(contains(psilab::estimate_text(psilab::parse_input_text("molecule = H2O\nbasis = aug-cc-pCVDZ\n")),
                    "aug-cc-pCVDZ is not defined for H"));
+    // Full CI: H2 runs, H2O is refused with an explanation.
+    const psilab::RunResult h2fci =
+        psilab::run_to_text(psilab::parse_input_text("molecule = H2\nbasis = aug-cc-pVDZ\nmethod = FCI\n"));
+    CHECK(h2fci.error.empty());
+    CHECK(contains(h2fci.text, "H2, FCI/aug-cc-pVDZ"));
+    CHECK(contains(h2fci.text, "total energy:         -1.1646244795 E_h"));
+    CHECK(contains(h2fci.text, "determinants:         324 (18 orbitals, 2 electrons)"));
+    CHECK(contains(h2fci.text, "Natural orbital occupation numbers"));
+    const psilab::RunResult h2ofci = psilab::run_to_text(psilab::parse_input_text("molecule = H2O\nmethod = FCI\n"));
+    CHECK(h2ofci.text.empty() && contains(h2ofci.error, "impossible"));
+    CHECK(contains(psilab::estimate_text(psilab::parse_input_text("molecule = LiH\nbasis = aug-cc-pVQZ\nmethod = FCI\n")),
+                   "NOT POSSIBLE"));
     const psilab::RunResult lih =
         psilab::run_to_text(psilab::parse_input_text("molecule = LiH\nbasis = aug-cc-pCV5Z\n"));
     CHECK(lih.text.empty() && contains(lih.error, "not available for Li"));
