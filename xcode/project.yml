@@ -32,6 +32,10 @@ targets:
       - path: ../third_party/nlohmann
         name: ThirdParty
         buildPhase: none
+      # Gaussian94 basis-set files, copied as the folder Contents/Resources/basis.
+      - path: ../basis
+        type: folder
+        buildPhase: resources
 
     entitlements:
       path: PsiLab.entitlements
@@ -45,8 +49,8 @@ targets:
         PRODUCT_NAME: "ΨLab"
         PRODUCT_MODULE_NAME: PsiLab
         PRODUCT_BUNDLE_IDENTIFIER: org.psilab.PsiLab
-        MARKETING_VERSION: "2.0"
-        CURRENT_PROJECT_VERSION: "2"
+        MARKETING_VERSION: "3.0"
+        CURRENT_PROJECT_VERSION: "3"
         GENERATE_INFOPLIST_FILE: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_CFBundleDisplayName: "ΨLab"
@@ -66,3 +70,8 @@ targets:
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "-"
         ENABLE_HARDENED_RUNTIME: YES
+      configs:
+        Release:
+          # The integral and Full CI kernels profit from -O3 (vectorisation); the results of
+          # HeH+ stay identical because -ffp-contract=off keeps IEEE arithmetic.
+          GCC_OPTIMIZATION_LEVEL: "3"

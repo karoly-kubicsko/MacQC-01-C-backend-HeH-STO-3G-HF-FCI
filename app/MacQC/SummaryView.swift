@@ -11,7 +11,9 @@ struct SummaryView: View {
     var model: AppModel
 
     var body: some View {
-        if let out = model.result, let hf = out.hf {
+        if let out = model.result, out.isGeneral {
+            GeneralSummaryView(model: model, out: out)
+        } else if let out = model.result, let hf = out.hf {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     if let message = model.errorMessage {
@@ -71,13 +73,14 @@ struct SummaryView: View {
 struct EnergyCard: View {
     var title: String
     var value: Double
+    var decimals: Int = 8
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Text(Fmt.energy(value))
+            Text(decimals == 8 ? Fmt.energy(value) : String(format: "%.*f", Int32(decimals), value))
                 .font(.title3.monospacedDigit().weight(.semibold))
                 .textSelection(.enabled)
                 .lineLimit(1)

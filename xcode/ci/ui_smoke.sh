@@ -1,7 +1,9 @@
 #!/bin/bash
 # UI smoke test for the built ΨLab.app on a GitHub macOS runner.
 # Launches the app, screenshots each tab, dumps the visible text of every tab to the log,
-# runs the potential-curve scan and checks the Edit/File menu commands.
+# runs the potential-curve scan and checks the Edit/File menu commands; then relaunches with
+# launch arguments for H2O (RHF), LiH (Full CI), an H2 potential curve, the refused Full CI
+# of H2O and a long H2O calculation (warning).
 # Never fails the job: it only gathers evidence (screenshots + text) for review.
 #
 # Usage: ui_smoke.sh path/to/ΨLab.app output-dir
@@ -229,6 +231,37 @@ click_shot "dark-04-potential-curve" "Potential curve"
 with_timeout 90 osascript "$OUT/tab.applescript" "__SCAN__" | grep -E "CLICKED|NOT FOUND"
 sleep 8
 shot "dark-05-curve-after-scan"
+
+# --- ΨLab 3.0: H2, LiH, H2O (launch arguments select molecule, basis set and method) ---------
+relaunch() {   # $@ = launch arguments
+    pkill -x "ΨLab" || true
+    sleep 3
+    open -n "$APP" --args "$@"
+    sleep 20
+}
+echo "== H2O, RHF/aug-cc-pVDZ"
+relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -psilabMethod RHF
+dump_tab "10-h2o-rhf-summary" "Summary"
+dump_tab "11-h2o-rhf-hartree-fock" "Hartree–Fock"
+dump_tab "12-h2o-rhf-report" "Report"
+
+echo "== LiH, Full CI/aug-cc-pVDZ"
+relaunch -appearanceChoice light -psilabMolecule LiH -psilabBasis aug-cc-pVDZ -psilabMethod FCI
+dump_tab "13-lih-fci-summary" "Summary"
+dump_tab "14-lih-fci-full-ci" "Full CI"
+
+echo "== H2, Full CI/aug-cc-pVDZ potential curve"
+relaunch -appearanceChoice light -psilabMolecule H2 -psilabBasis aug-cc-pVDZ -psilabMethod FCI
+dump_tab "15-h2-curve" "Potential curve"
+with_timeout 90 osascript "$OUT/tab.applescript" "__SCAN__" | grep -E "CLICKED|NOT FOUND"
+sleep 25
+dump_tab "16-h2-curve-after-scan" ""
+
+echo "== H2O, Full CI (must be refused) and a long calculation (warning)"
+relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -psilabMethod FCI
+dump_tab "17-h2o-fci-refused" ""
+relaunch -appearanceChoice dark -psilabMolecule H2O -psilabBasis aug-cc-pCV5Z -psilabMethod RHF
+dump_tab "18-h2o-cv5z-warning-dark" ""
 
 # Print downscaled screenshots into the log as base64 JPEG so they can be read through the
 # GitHub API without downloading the artifact. Decode: lines between IMG_BEGIN/IMG_END.

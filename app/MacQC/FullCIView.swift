@@ -11,7 +11,9 @@ struct FullCIView: View {
     var model: AppModel
 
     var body: some View {
-        if let out = model.result, let fci = out.fci {
+        if let out = model.result, out.isGeneral {
+            GeneralFullCIView(model: model, out: out)
+        } else if let out = model.result, let fci = out.fci {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     if let message = model.errorMessage {

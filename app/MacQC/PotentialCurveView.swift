@@ -2,7 +2,8 @@
 //  PotentialCurveView.swift
 //  MacQC
 //
-//  Potential-curve tab: scan R from 0.8 to 5.0 bohr, plot HF and FCI total energies with
+//  Potential-curve tab: scan the bond length (HeH⁺: 0.8 … 5.0 bohr; H₂, LiH, H₂O: their own
+//  ranges, H₂O as a symmetric stretch), plot the HF/RHF and Full CI total energies with
 //  Swift Charts and mark the minimum of each curve.
 //
 
@@ -26,7 +27,7 @@ struct PotentialCurveView: View {
                         ContentUnavailableView(
                             "No potential curve yet",
                             systemImage: "chart.xyaxis.line",
-                            description: Text("Press Run scan to compute HF and FCI total energies for R = 0.42 … 2.65 Å (0.8 … 5.0 bohr) with the basis and exponents from the sidebar.")
+                            description: Text(emptyText)
                         )
                         .frame(maxWidth: .infinity, minHeight: 260)
                     }
@@ -54,7 +55,7 @@ struct PotentialCurveView: View {
                 .disabled(model.isScanning)
 
                 Button {
-                    model.startScan()
+                    model.requestScan()
                 } label: {
                     Label("Run scan", systemImage: "play.fill")
                 }
@@ -76,13 +77,42 @@ struct PotentialCurveView: View {
 
                 Spacer()
 
-                Text("\(model.scanGrid().count) points")
+                Text(pointsText)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             }
             .padding(12)
             .glassPanel(cornerRadius: 18)
         }
+        .confirmationDialog("Long scan", isPresented: $model.showLongScanConfirmation) {
+            Button("Run scan") {
+                model.startScan()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The scan has \(model.scanGrid().count) points and is estimated to take \(Fmt.duration(model.scanSeconds)). You can stop it while it runs.")
+        }
+    }
+
+    private var pointsText: String {
+        let n = model.scanGrid().count
+        if model.isGeneral && model.scanSeconds > 0 {
+            return "\(n) points · \(Fmt.duration(model.scanSeconds))"
+        }
+        return "\(n) points"
+    }
+
+    private var emptyText: String {
+        let range = model.scanRange
+        let rangeText = String(format: "R = %.2f … %.2f Å (%.2f … %.2f bohr)",
+                               range.lowerBound * Units.bohrToAngstrom, range.upperBound * Units.bohrToAngstrom,
+                               range.lowerBound, range.upperBound)
+        if model.isGeneral {
+            let method = model.method == .fci ? "RHF and Full CI" : "RHF"
+            let what = model.molecule == .h2o ? "symmetric stretch, \(rangeText) at the chosen angle" : rangeText
+            return "Press Run scan to compute \(method) total energies of \(model.molecule.title) (\(what)) in \(model.basis)."
+        }
+        return "Press Run scan to compute HF and FCI total energies for \(rangeText) with the basis and exponents from the sidebar."
     }
 
     // MARK: Chart
@@ -116,9 +146,9 @@ struct PotentialCurveView: View {
                     .symbolSize(110)
                 }
             }
-            .chartForegroundStyleScale(["HF": Color.orange, "FCI": Color.blue])
+            .chartForegroundStyleScale([model.curveHFLabel: Color.orange, "FCI": Color.blue])
             // Same shapes as the minimum markers, so the legend matches the plot.
-            .chartSymbolScale(["HF": BasicChartSymbolShape.diamond, "FCI": BasicChartSymbolShape.circle])
+            .chartSymbolScale([model.curveHFLabel: BasicChartSymbolShape.diamond, "FCI": BasicChartSymbolShape.circle])
             .chartXScale(domain: xDomain)
             .chartYScale(domain: yDomain)
             .chartXAxisLabel("R (Å)")
@@ -146,7 +176,7 @@ struct PotentialCurveView: View {
     // MARK: Minima markers and readout
 
     private func color(for method: String) -> Color {
-        method == "HF" ? .orange : .blue
+        method == "FCI" ? .blue : .orange
     }
 
     /// Bottom-right normally (the curves level off high up at large R); bottom-left if a
@@ -161,7 +191,7 @@ struct PotentialCurveView: View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(model.curveMinima) { minimum in
                 HStack(spacing: 6) {
-                    Image(systemName: minimum.method == "HF" ? "diamond.fill" : "circle.fill")
+                    Image(systemName: minimum.method == "FCI" ? "circle.fill" : "diamond.fill")
                         .font(.caption2)
                         .foregroundStyle(color(for: minimum.method))
                     Text(String(format: "%@ min: R = %@, E = %.6f E_h",
@@ -182,7 +212,7 @@ struct PotentialCurveView: View {
     private var xDomain: ClosedRange<Double> {
         let values = model.curvePoints.map { $0.R * Units.bohrToAngstrom }   // axis in Å
         guard let lo = values.min(), let hi = values.max(), lo < hi else {
-            return (AppModel.scanStart * Units.bohrToAngstrom)...(AppModel.scanEnd * Units.bohrToAngstrom)
+            return (model.scanRange.lowerBound * Units.bohrToAngstrom)...(model.scanRange.upperBound * Units.bohrToAngstrom)
         }
         return lo...hi
     }

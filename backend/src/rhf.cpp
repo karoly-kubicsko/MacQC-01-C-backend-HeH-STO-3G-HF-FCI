@@ -1,5 +1,7 @@
 #include "macqc/rhf.h"
 
+#include "macqc/job.h"
+
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -29,8 +31,10 @@ void parallel(int threads, Body body) {
     std::vector<std::thread> pool;
     std::exception_ptr error;
     std::mutex mutex;
+    Job* job = current_job();
     for (int t = 0; t < threads; ++t)
-        pool.emplace_back([&, t] {
+        pool.emplace_back([&, t, job] {
+            JobScope scope(job);
             try {
                 body(t);
             } catch (...) {
@@ -157,6 +161,7 @@ FockBuilder::FockBuilder(const BasisSet& basis, int threads, double memory_limit
         parallel(threads_, [&](int) {
             EriEngine engine(basis_);
             for (std::size_t p; (p = next++) < npairs;) {
+                check_cancelled();
                 const ShellPair& sp = pairs_.pairs[p];
                 double mx = 0.0;
                 if (!sp.prims.empty()) {
@@ -185,6 +190,7 @@ FockBuilder::FockBuilder(const BasisSet& basis, int threads, double memory_limit
             EriEngine engine(basis_);
             std::size_t local = 0;
             for (std::size_t k; (k = next++) < npairs;) {
+                check_cancelled();
                 const std::size_t P = npairs - 1 - k;  // heaviest rows first
                 const ShellPair& bra = pairs_.pairs[P];
                 if (bra.prims.empty()) continue;
@@ -231,6 +237,7 @@ Matrix FockBuilder::build_stored(const Matrix& D) const {
     parallel(threads_, [&](int t) {
         Matrix& G = parts[static_cast<std::size_t>(t)];
         for (std::size_t k; (k = next++) < n;) {
+            check_cancelled();
             const std::size_t p = n - 1 - k;
             for (std::size_t q = 0; q <= p; ++q) {
                 const std::size_t pq = p * (p + 1) / 2 + q;
@@ -284,6 +291,7 @@ Matrix FockBuilder::build_direct(const Matrix& D) const {
         Matrix& G = parts[static_cast<std::size_t>(t)];
         EriEngine engine(basis_);
         for (std::size_t k; (k = next++) < npairs;) {
+            check_cancelled();
             const std::size_t P = npairs - 1 - k;
             const ShellPair& bra = pairs_.pairs[P];
             if (bra.prims.empty()) continue;
@@ -341,6 +349,8 @@ RHFResult run_rhf(const Molecule& mol, const BasisSet& basis, const RHFOptions& 
     const std::size_t n = static_cast<std::size_t>(basis.n_functions);
     if (n < static_cast<std::size_t>(nocc)) throw std::runtime_error("the basis set has fewer functions than occupied orbitals");
 
+    report_progress(JobStage::Integrals);
+    check_cancelled();
     RHFResult r;
     r.n_basis = basis.n_functions;
     r.n_occupied = nocc;
@@ -396,6 +406,7 @@ RHFResult run_rhf(const Molecule& mol, const BasisSet& basis, const RHFOptions& 
     Matrix F;
     int since_full = 0;
     for (int it = 1; it <= opt.max_iter; ++it) {
+        check_cancelled();
         // Fock matrix; integral-direct builds are incremental in the density change.
         if (fock.stored() || since_full >= 8 || it == 1) {
             G = fock.build(P);
@@ -424,6 +435,7 @@ RHFResult run_rhf(const Molecule& mol, const BasisSet& basis, const RHFOptions& 
         r.electronic_energy = e_el;
         r.total_energy = e_tot;
         r.iterations = it;
+        report_progress(JobStage::SCF, it, e_tot, gmax);
 
         const bool done = it > 1 && std::fabs(e_tot - e_prev) < opt.energy_tol && gmax < opt.gradient_tol;
         e_prev = e_tot;

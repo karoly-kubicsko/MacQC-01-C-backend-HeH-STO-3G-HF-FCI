@@ -7,6 +7,8 @@
 #include <thread>
 #include <vector>
 
+#include "macqc/job.h"
+
 namespace macqc {
 
 template <class Body>
@@ -18,8 +20,10 @@ void run_parallel(int threads, Body body) {
     std::vector<std::thread> pool;
     std::exception_ptr error;
     std::mutex mutex;
+    Job* job = current_job();  // workers see the caller's job (cancellation, progress)
     for (int t = 0; t < threads; ++t)
-        pool.emplace_back([&, t] {
+        pool.emplace_back([&, t, job] {
+            JobScope scope(job);
             try {
                 body(t);
             } catch (...) {

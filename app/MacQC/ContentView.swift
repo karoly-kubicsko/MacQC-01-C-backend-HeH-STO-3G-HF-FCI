@@ -21,9 +21,17 @@ struct ContentView: View {
         .navigationTitle("ΨLab")
         .preferredColorScheme((AppearanceChoice(rawValue: appearanceRaw) ?? .system).colorScheme)
         .task {
-            // Show a result right away with the Szabo–Ostlund defaults.
+            // Show a result right away (the Szabo–Ostlund defaults, or the molecule given as a
+            // launch argument). Large general calculations wait for Run.
             if model.result == nil {
-                await model.run()
+                if model.isGeneral {
+                    await model.refreshEstimate()
+                    if model.refusal == nil && !model.isLongCalculation {
+                        await model.run()
+                    }
+                } else {
+                    await model.run()
+                }
             }
         }
     }
@@ -49,6 +57,10 @@ struct DetailView: View {
             PotentialCurveView(model: model)
                 .tabItem { Label("Potential curve", systemImage: "chart.xyaxis.line") }
                 .tag(DetailTab.potentialCurve)
+
+            ReportView(model: model)
+                .tabItem { Label("Report", systemImage: "doc.plaintext") }
+                .tag(DetailTab.report)
         }
         .padding(.top, 4)
     }
@@ -102,7 +114,9 @@ struct NoResultView: View {
             ContentUnavailableView(
                 "No results yet",
                 systemImage: "atom",
-                description: Text("Press Run to start a Hartree–Fock and Full CI calculation.")
+                description: Text(model.isGeneral
+                                  ? "Choose the basis set and method in the sidebar and press Run."
+                                  : "Press Run to start a Hartree–Fock and Full CI calculation.")
             )
         }
         .padding()

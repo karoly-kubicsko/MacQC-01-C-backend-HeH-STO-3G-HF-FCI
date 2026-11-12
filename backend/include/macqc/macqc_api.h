@@ -5,6 +5,16 @@
  *                          It never throws and never returns NULL except when memory
  *                          is exhausted. Errors are reported in the "error" field.
  *   macqc_free(p)          releases a string returned by macqc_run.
+ *
+ * Jobs (cancellation and progress of long calculations, thread-safe):
+ *   macqc_job_create()          a new job handle;
+ *   macqc_run_job(json, job)    like macqc_run; the job may be cancelled from another thread,
+ *                               then the result has "error": "calculation cancelled";
+ *   macqc_job_cancel(job)       requests cancellation (returns at once);
+ *   macqc_job_progress(job, …)  current stage (0 idle, 1 integrals, 2 SCF, 3 integral
+ *                               transformation, 4 Full CI, 5 done), iteration, total energy
+ *                               (E_h) and residual (SCF gradient or CI residual);
+ *   macqc_job_free(job)         releases the handle (after macqc_run_job has returned).
  */
 #ifndef MACQC_API_H
 #define MACQC_API_H
@@ -15,6 +25,13 @@ extern "C" {
 
 char* macqc_run(const char* input_json);
 void macqc_free(char* p);
+
+typedef struct macqc_job macqc_job;
+macqc_job* macqc_job_create(void);
+char* macqc_run_job(const char* input_json, macqc_job* job);
+void macqc_job_cancel(macqc_job* job);
+void macqc_job_progress(const macqc_job* job, int* stage, int* iteration, double* energy, double* residual);
+void macqc_job_free(macqc_job* job);
 
 #ifdef __cplusplus
 }

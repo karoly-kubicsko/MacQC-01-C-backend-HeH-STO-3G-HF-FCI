@@ -12,7 +12,9 @@ struct HartreeFockView: View {
     var model: AppModel
 
     var body: some View {
-        if let out = model.result, let hf = out.hf {
+        if let out = model.result, out.isGeneral {
+            GeneralHartreeFockView(model: model, out: out)
+        } else if let out = model.result, let hf = out.hf {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     if let message = model.errorMessage {

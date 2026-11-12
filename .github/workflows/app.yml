@@ -62,6 +62,9 @@ jobs:
         run: |
           lipo -archs "build/app/ΨLab.app/Contents/MacOS/ΨLab"
           codesign -dv --entitlements - "build/app/ΨLab.app" 2>&1 | head -n 30
+          # The basis-set files must be inside the bundle (Contents/Resources/basis).
+          ls -l "build/app/ΨLab.app/Contents/Resources/basis"
+          test -f "build/app/ΨLab.app/Contents/Resources/basis/aug-cc-pcv5z.gbs"
 
       - name: Package
         run: ditto -c -k --keepParent "build/app/ΨLab.app" "ΨLab.app.zip"
