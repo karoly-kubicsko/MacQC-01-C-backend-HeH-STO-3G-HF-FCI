@@ -96,15 +96,17 @@ molecule = H2O               # H2, LiH or H2O (default HeH+)
 basis    = aug-cc-pVTZ       # aug-cc-pVXZ or aug-cc-pCVXZ, X = D, T, Q, 5
 R        = 0.9572 angstrom   # O-H (H2: H-H, LiH: Li-H); default 0.74144 / 1.5949 / 0.9572 Å
 angle    = 104.52            # H-O-H in degrees (H2O only)
-method   = RHF
+method   = RHF               # RHF, or FCI (RHF followed by Full CI; H2 and LiH up to aug-cc-pCVTZ)
 threads  = 0                 # 0: all processor cores
 memory   = 1024 MB           # two-electron integrals are kept in memory up to this size
+fci_memory = 4 GB            # memory limit of a Full CI
 ```
 
 `psilab --estimate input.inp` prints the size of the calculation (basis functions, two-electron
 integrals, memory) and a rough time estimate without computing; a calculation estimated to take
 longer than 30 s prints a warning first. Calculations that cannot be done are refused with an
-explanation (for example LiH in aug-cc-pCV5Z, which is not defined for Li). The basis-set files are
+explanation (for example LiH in aug-cc-pCV5Z, which is not defined for Li, or Full CI for H₂O,
+which would need 5.6·10¹¹ determinants already in aug-cc-pVDZ). The basis-set files are
 found in `basis_dir` (input key), `$PSILAB_BASIS_DIR`, the installed copy
 (`<prefix>/share/psilab/basis`, put there by `cmake --install`) or the source tree.
 The output file contains the same text as the app's *File ▸ Export Results as Text*: the summary,
@@ -144,10 +146,10 @@ Reference values (R = 1.4632 bohr, STO-3G, ζ = 2.0925 / 1.24): E_HF,total = −
 
 ### General molecules: H2, LiH, H2O (version 3.0, in progress)
 
-ΨLab 3.0 adds H₂, LiH and H₂O (closed shell, restricted Hartree–Fock) in the
-correlation-consistent basis sets aug-cc-pVXZ and aug-cc-pCVXZ (X = D, T, Q, 5), up to h functions
-(l = 5) and up to 341 basis functions (H₂O in aug-cc-pCV5Z). Stage 1 (this part) is the integral
-engine and RHF; Full CI and the app's user interface follow.
+ΨLab 3.0 adds H₂, LiH and H₂O (closed shell) in the correlation-consistent basis sets aug-cc-pVXZ
+and aug-cc-pCVXZ (X = D, T, Q, 5), up to h functions (l = 5) and up to 341 basis functions (H₂O in
+aug-cc-pCV5Z), with restricted Hartree–Fock and Full CI. Stages 1 and 2 (this part) are the
+integral engine, RHF and Full CI in the backend and in `psilab`; the app's user interface follows.
 
 - **Basis sets**: the Gaussian94 files in [`basis/`](basis/README.md), downloaded from the Basis
   Set Exchange and read at run time (`basis.cpp`, G94 parser with `D` exponents, SP shells, scale
@@ -169,7 +171,33 @@ engine and RHF; Full CI and the app's user interface follow.
   before the calculation (warning above 30 s), the text report (geometry, basis per atom, SCF
   iterations, energy components, virial ratio, orbital energies).
 
-**Verification** (`backend/tests/test_rhf.cpp`, run by CTest):
+- **Full CI** (`mo_integrals.cpp`, `ci.cpp`): all electrons correlated, determinants with
+  M_S = 0, lowest singlet state. The two-electron integrals are transformed to the RHF orbitals
+  integral-direct (shell quartets → (μν|rs) → (pq|rs), matrix products). The CI vector is a matrix
+  C(I_α, I_β) over occupation strings; σ = HC is built from the one-spin string Hamiltonian F
+  (σ = CF + FC) and, for the opposite-spin part, the (N−1)-electron resolution of the identity:
+  D_jl(K_α,K_β) = ⟨K_α|a_j|J_α⟩⟨K_β|a_l|J_β⟩C(J_α,J_β), E = (ij|kl)·D as one matrix product
+  (cost n⁶ for two electrons per spin, instead of n⁸), then the scatter back with a⁺_i a⁺_k.
+  Davidson method with diagonal preconditioner; the trial vectors are kept symmetric (C = Cᵀ), which
+  removes triplet components. Output: energy, correlation energy, ⟨S²⟩ (= |S₊Ψ|²), weight of the
+  RHF determinant, leading determinants, natural-orbital occupation numbers.
+- **Limits**: Full CI is refused, with an explanation, above 2·10⁷ determinants (160 MB per CI
+  vector) or above the memory limit (`fciMemoryMB`, default 4 GB). Determinants per case:
+
+  | Basis set | H₂ | LiH | H₂O |
+  |---|---|---|---|
+  | aug-cc-pVDZ | 324 | 246,016 | 5.6e11 — refused |
+  | aug-cc-pVTZ | 2,116 | 5,503,716 | 2.4e15 — refused |
+  | aug-cc-pVQZ | 8,464 | 62,015,625 — refused | 1.4e18 — refused |
+  | aug-cc-pV5Z | 25,600 | 454,585,041 — refused | 2.5e20 — refused |
+  | aug-cc-pCVDZ | 324 | 396,900 | 1.5e12 — refused |
+  | aug-cc-pCVTZ | 2,116 | 11,029,041 | 9.3e15 — refused |
+  | aug-cc-pCVQZ | 8,464 | 142,444,225 — refused | 6.8e18 — refused |
+  | aug-cc-pCV5Z | 25,600 | – (basis not defined for Li) | 1.4e21 — refused |
+
+  Before a calculation ΨLab estimates its memory and time and warns above 30 s.
+
+**Verification** (`backend/tests/test_rhf.cpp`, `test_fci.cpp`, run by CTest):
 
 - RHF total energies agree with [PySCF](https://pyscf.org) 2.15 — an independent program reading
   the same `.gbs` files with its own parser, at identical geometries — to better than 1e-9 Eₕ in
@@ -187,6 +215,36 @@ engine and RHF; Full CI and the app's user interface follow.
   (1986)). The aug-cc-pVXZ energies decrease monotonically towards the limit from above:
   H₂ 4.8e-3, 6.0e-4, 1.6e-4, 1.9e-5 Eₕ and LiH 3.2e-3, 5.6e-4, 1.4e-4, 2.0e-5 Eₕ above it for
   X = D, T, Q, 5.
+
+- Full CI energies agree with PySCF to every printed digit (10 decimals; `reference/pyscf_fci_reference.py`
+  → `backend/tests/data/fci_reference.json`): H₂ in aug-cc-pV{D,T,Q,5}Z (reference: PySCF CCSD, which
+  is exact for two electrons) and LiH in aug-cc-pVDZ, aug-cc-pCVDZ, aug-cc-pVTZ (PySCF's determinant
+  Full CI, `fci.direct_spin0`). LiH/aug-cc-pCVTZ (11 million determinants) runs through the same
+  code; it was not recomputed with PySCF, whose solver needed 2.2 h already for aug-cc-pVTZ (ΨLab:
+  57 s). The string-driven σ algorithm is also compared with
+  a dense Hamiltonian matrix built from spin-orbital Slater–Condon rules for 1, 2 and 5 electrons
+  per spin (H₂, LiH and H₂O in truncated orbital spaces): agreement to 1e-12 Eₕ; ⟨S²⟩ = 0 to 1e-8.
+- Exact non-relativistic energies: Full CI lies above them and approaches them with the basis set,
+  e.g. H₂ at R = 1.4 bohr (exact −1.1744757142 Eₕ, Pachucki, Phys. Rev. A 82, 032509 (2010)):
+  9.9e-3, 1.8e-3, 6.1e-4 Eₕ above it in aug-cc-pV{D,T,Q}Z. For LiH (exact ≈ −8.07055 Eₕ at
+  3.015 bohr, explicitly correlated Gaussians) the core-valence set aug-cc-pCVDZ recovers most of the
+  Li 1s correlation that aug-cc-pVDZ misses (1.9e-2 instead of 4.9e-2 Eₕ above the exact energy).
+
+Full CI energies at the default geometries (E_h):
+
+| Basis set | H₂ | LiH |
+|---|---|---|
+| aug-cc-pVDZ | −1.1646244795 | −8.0212084789 |
+| aug-cc-pVTZ | −1.1726340136 | −8.0386964311 |
+| aug-cc-pVQZ | −1.1738672462 | refused |
+| aug-cc-pV5Z | −1.1742521870 | refused |
+| aug-cc-pCVDZ | (= aug-cc-pVDZ) | −8.0518951298 |
+| aug-cc-pCVTZ | (= aug-cc-pVTZ) | −8.0652388024 |
+
+Timings with 4 threads (2.1 GHz x86-64; RHF, integral transformation and Davidson): H₂/aug-cc-pV5Z
+21 s (1.6 GB), LiH/aug-cc-pVTZ 57 s (1.5 GB), LiH/aug-cc-pCVTZ 2.7 min (2.8 GB); all other Full CI
+cases take a few seconds. The built-in estimates are 20–40 % above these times and within 5 % of
+the memory.
 
 RHF energies at the default geometries (E_h; identical to PySCF in every printed digit, with the same
 threshold 1e-7 for removing near-linear dependencies — PySCF's own default, 1e-6, would remove one
@@ -211,7 +269,8 @@ H takes the aug-cc-pVXZ functions)
 ```
 backend/include/macqc/   public headers (macqc_api.h is the C API)
 backend/src/             linalg, integrals, scf, fci, report, calculation, api (HeH+, STO-nG);
-                         molecule, basis, gto_integrals, rhf, molecular (H2, LiH, H2O)
+                         molecule, basis, gto_integrals, rhf, molecular (H2, LiH, H2O);
+                         gemm, mo_integrals, ci (Full CI for H2, LiH)
 basis/                   Gaussian94 basis-set files from basissetexchange.org (+ README)
 backend/cli/main.cpp     developer command-line tool `macqc` (flags / JSON)
 backend/cli/psilab*      terminal version `psilab` (text input file -> text output file)
@@ -280,14 +339,16 @@ above unchanged):
 
 ```json
 {"molecule":"H2O","basis":"aug-cc-pVTZ","R":1.808846,"angle":104.52,"method":"RHF",
- "basisDirectory":"/path/to/basis","threads":0,"memoryMB":1024,"scfMaxIter":100,
- "energyConvergence":1e-10,"gradientConvergence":1e-7,"estimateOnly":false,"printLevel":2}
+ "basisDirectory":"/path/to/basis","threads":0,"memoryMB":1024,"fciMemoryMB":4096,
+ "scfMaxIter":100,"energyConvergence":1e-10,"gradientConvergence":1e-7,"estimateOnly":false,
+ "printLevel":2}
 ```
 
 `R` is in bohr (H₂O: O–H) and defaults to the experimental equilibrium bond length; `angle`
-(degrees, H₂O) defaults to 104.52; `basisDirectory` defaults to `$PSILAB_BASIS_DIR` or the
-compiled-in source folder. With `"estimateOnly":true` only the molecule, the basis set, the size
-and time estimate and the warnings are returned.
+(degrees, H₂O) defaults to 104.52; `method` is `"RHF"` or `"FCI"` (RHF followed by Full CI);
+`basisDirectory` defaults to `$PSILAB_BASIS_DIR` or the compiled-in source folder. With
+`"estimateOnly":true` only the molecule, the basis set, the size and time estimate, the warnings
+and (for a Full CI that is not possible) the refusal are returned, without an error.
 
 #### Output JSON
 
@@ -327,21 +388,30 @@ For general molecules the output is
   "basis":    {"name","functions","shells","maxL",
                "atoms":[{"symbol","basis","contraction","primitives","functions"}]},
   "estimate": {"basisFunctions","uniqueIntegrals","integralMemoryMB","integralsStored",
-               "threads","rhfSeconds","longCalculation"},
+               "threads","rhfSeconds","totalSeconds","longCalculation",
+               "fci": {"orbitals","alphaElectrons","betaElectrons","alphaStrings","betaStrings",
+                       "determinants","memoryMB","seconds","feasible","reason"} | null},
   "notes":    ["aug-cc-pCVDZ is not defined for H ..."],
   "warnings": ["Long calculation: ... Estimated time about 6 min on 8 threads."],
+  "refusal":  null | "Full CI is not possible here: ...",
   "rhf": {"converged","iterations","totalEnergy","electronicEnergy","nuclearRepulsion",
           "kineticEnergy","nuclearAttractionEnergy","electronRepulsionEnergy","virialRatio",
           "orbitalEnergies","occupiedOrbitals","homo","lumo","smallestOverlapEigenvalue",
           "removedFunctions","integralsStored","uniqueIntegrals","threads",
           "integralSeconds","scfSeconds",
           "scfHistory":[{"iteration","totalEnergy","deltaE","gradient","diis"}]} | null,
+  "fullCI": {"converged","iterations","totalEnergy","electronicEnergy","correlationEnergy","S2",
+             "hfWeight","orbitals","alphaElectrons","betaElectrons","alphaStrings","betaStrings",
+             "determinants","naturalOccupations","transformSeconds","ciSeconds",
+             "leadingDeterminants":[{"coefficient","alpha":[MOs],"beta":[MOs],"excitation"}],
+             "history":[{"iteration","totalEnergy","residual","subspace"}]} | null,
   "hf": null, "fci": null,
   "report": "text report"
 }
 ```
 
-A refused calculation (e.g. LiH/aug-cc-pCV5Z) has `error` set and `rhf` `null`.
+A refused calculation (e.g. LiH/aug-cc-pCV5Z, or Full CI for H₂O) has `error` set and `rhf` and
+`fullCI` `null`; for Full CI the reason is also in `refusal`.
 
 ### Adding to Xcode
 
@@ -353,8 +423,8 @@ How the backend is wired into the ΨLab Xcode target (the full step-by-step guid
    source of truth).
 2. In the app target's **Build Phases ▸ Compile Sources** add exactly these files:
    `backend/src/linalg.cpp`, `integrals.cpp`, `report.cpp`, `scf.cpp`, `fci.cpp`,
-   `molecule.cpp`, `basis.cpp`, `gto_integrals.cpp`, `rhf.cpp`, `molecular.cpp`,
-   `calculation.cpp`, `api.cpp`. Do **not** add `backend/cli/main.cpp` or anything in
+   `molecule.cpp`, `basis.cpp`, `gto_integrals.cpp`, `rhf.cpp`, `molecular.cpp`, `gemm.cpp`,
+   `mo_integrals.cpp`, `ci.cpp`, `calculation.cpp`, `api.cpp`. Do **not** add `backend/cli/main.cpp` or anything in
    `backend/tests/` (they have their own `main`). Headers (`backend/include/macqc/*.h` and
    `third_party/nlohmann/json.hpp`) need no compile phase but should be in the project.
 3. **Build Settings ▸ Header Search Paths** (`HEADER_SEARCH_PATHS`): add

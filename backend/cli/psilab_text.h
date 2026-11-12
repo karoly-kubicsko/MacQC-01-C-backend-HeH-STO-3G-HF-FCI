@@ -6,8 +6,8 @@
 //   R          bond length (H2O: O-H), a number optionally followed by a unit: bohr (default)
 //              or angstrom; default for H2, LiH, H2O: the experimental equilibrium value
 //   angle      H-O-H angle in degrees (H2O; default 104.52)
-//   method     RHF (H2, LiH, H2O)
-//   threads, memory (MB or GB), basis_dir      (H2, LiH, H2O)
+//   method     RHF | FCI (H2, LiH, H2O; Full CI is refused where it is impossible, e.g. H2O)
+//   threads, memory, fci_memory (MB or GB), basis_dir      (H2, LiH, H2O)
 //   zeta_He, zeta_H, exact_erf, scan, scan_step (HeH+ only):
 //   zeta_He    Slater exponent of He          zeta_H     Slater exponent of H
 //   exact_erf  yes | no                       scan       yes | no

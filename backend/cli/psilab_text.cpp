@@ -142,7 +142,8 @@ std::string summary_text(const macqc::Output& out) {
 std::string general_summary(const macqc::Output& out) {
     const macqc::MolecularResult& m = *out.molecular;
     std::vector<std::string> lines;
-    lines.push_back("\xCE\xA8Lab \xE2\x80\x93 " + m.molecule.name + ", RHF/" + m.basis.name);
+    lines.push_back("\xCE\xA8Lab \xE2\x80\x93 " + m.molecule.name + ", " + (m.input.method == "FCI" ? "FCI" : "RHF") + "/" +
+                    m.basis.name);
     if (m.molecule.name == "H2O")
         lines.push_back("R(O-H) = " + length_both(m.input.R, 4) + format(", angle H-O-H = %.2f deg", m.input.angle));
     else
@@ -169,6 +170,20 @@ std::string general_summary(const macqc::Output& out) {
             lines.push_back(format("  HOMO, LUMO:           %.8f, %.8f E_h", h.orbital_energies[no - 1],
                                    h.orbital_energies[no]));
     }
+    if (m.fci) {
+        const auto& f = *m.fci;
+        lines.push_back("");
+        lines.push_back("Full CI");
+        lines.push_back(format("  determinants:         %zu (%d orbitals, %d electrons)", f.determinants, f.orbitals,
+                               f.alpha + f.beta));
+        lines.push_back(format("  converged:            %s (%d Davidson iterations)", f.converged ? "yes" : "no",
+                               f.iterations));
+        lines.push_back(format("  total energy:         %.10f E_h", f.total_energy));
+        lines.push_back(format("  correlation energy:   %.10f E_h", f.correlation_energy));
+        lines.push_back(format("  <S^2>:                %.6f", f.s2));
+        lines.push_back(format("  RHF determinant:      |C_0|^2 = %.6f", f.hf_weight));
+    }
+    if (!m.refusal.empty()) lines.push_back("Not possible: " + m.refusal);
     for (const auto& w : m.warnings) lines.push_back("Warning: " + w);
     if (!out.error.empty()) {
         lines.push_back("");
@@ -200,6 +215,7 @@ Settings parse_input_text(const std::string& text) {
         if (k == "scanstep") return "scan_step";
         if (k == "threads") return "threads";
         if (k == "memory" || k == "memorymb") return "memory";
+        if (k == "fcimemory" || k == "fcimemorymb") return "fci_memory";
         if (k == "basisdir" || k == "basisdirectory") return "basis_dir";
         return "";
     };
@@ -222,7 +238,7 @@ Settings parse_input_text(const std::string& text) {
         if (k.empty())
             fail(line, "unknown key '" + key +
                            "' (known: molecule, basis, R, angle, method, zeta_He, zeta_H, exact_erf, scan, "
-                           "scan_step, threads, memory, basis_dir)");
+                           "scan_step, threads, memory, fci_memory, basis_dir)");
         if (entries.count(k)) fail(line, "'" + key + "' is given twice");
         entries[k] = Entry{key, value, line};
     }
@@ -250,6 +266,7 @@ Settings parse_input_text(const std::string& text) {
     only("method", !heh, "H2, LiH and H2O (HeH+ always runs Hartree-Fock and Full CI)");
     only("threads", !heh, "H2, LiH and H2O");
     only("memory", !heh, "H2, LiH and H2O");
+    only("fci_memory", !heh, "H2, LiH and H2O");
     only("basis_dir", !heh, "H2, LiH and H2O");
 
     std::vector<std::pair<std::string, Entry>> ordered(entries.begin(), entries.end());
@@ -281,9 +298,9 @@ Settings parse_input_text(const std::string& text) {
             if (m == "rhf" || m == "hf" || m == "hartreefock") {
                 s.input.method = "RHF";
             } else if (m == "fci" || m == "fullci") {
-                fail(ln, "Full CI for H2, LiH and H2O is not available yet; use method = RHF");
+                s.input.method = "FCI";
             } else {
-                fail(ln, "method must be RHF, got '" + value + "'");
+                fail(ln, "method must be RHF or FCI, got '" + value + "'");
             }
         } else if (k == "zeta_He") {
             s.input.zeta1 = parse_number(value, ln, e.key);
@@ -301,17 +318,17 @@ Settings parse_input_text(const std::string& text) {
             const double t = parse_number(value, ln, e.key);
             if (t != std::floor(t) || t < 0 || t > 64) fail(ln, "threads must be an integer from 0 (all) to 64");
             s.input.threads = static_cast<int>(t);
-        } else if (k == "memory") {
+        } else if (k == "memory" || k == "fci_memory") {
             std::istringstream ms(value);
             std::string number, unit, extra;
             ms >> number >> unit >> extra;
-            if (!extra.empty()) fail(ln, "memory has unexpected text '" + extra + "'");
+            if (!extra.empty()) fail(ln, e.key + " has unexpected text '" + extra + "'");
             double mb = parse_number(number, ln, e.key);
             const std::string u = lower(unit);
             if (u == "gb" || u == "g") mb *= 1024.0;
-            else if (!u.empty() && u != "mb" && u != "m") fail(ln, "memory unit must be MB or GB");
-            if (mb < 0.0) fail(ln, "memory must not be negative");
-            s.input.memoryMB = mb;
+            else if (!u.empty() && u != "mb" && u != "m") fail(ln, e.key + " unit must be MB or GB");
+            if (mb < 0.0) fail(ln, e.key + " must not be negative");
+            (k == "memory" ? s.input.memoryMB : s.input.fciMemoryMB) = mb;
         } else if (k == "basis_dir") {
             s.input.basisDirectory = value;
         }
@@ -382,7 +399,7 @@ std::string estimate_text(const Settings& settings) {
     if (!out.molecular) return "Error: " + out.error + "\n";
     const auto& e = out.molecular->estimate;
     std::string t = out.report;
-    t += format("Estimated wall time: %.0f s on %d threads (rough estimate)\n", e.rhf_seconds, e.threads);
+    t += format("Estimated wall time: %.0f s on %d threads (rough estimate)\n", e.total_seconds, e.threads);
     return t;
 }
 

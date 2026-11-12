@@ -35,6 +35,7 @@ json input_json(const Input& in) {
                 {"basisDirectory", in.basisDirectory},
                 {"threads", in.threads},
                 {"memoryMB", in.memoryMB},
+                {"fciMemoryMB", in.fciMemoryMB},
                 {"scfMaxIter", in.scfMaxIter},
                 {"energyConvergence", in.energyConvergence},
                 {"gradientConvergence", in.gradientConvergence},
@@ -104,7 +105,23 @@ json molecular_json(const MolecularResult& m) {
                 {"integralsStored", e.eri_stored},
                 {"threads", e.threads},
                 {"rhfSeconds", e.rhf_seconds},
-                {"longCalculation", e.rhf_seconds > kLongCalculationSeconds}};
+                {"totalSeconds", e.total_seconds},
+                {"longCalculation", e.total_seconds > kLongCalculationSeconds}};
+    if (e.fci) {
+        const FCISize& f = *e.fci;
+        est["fci"] = {{"orbitals", f.orbitals},
+                      {"alphaElectrons", f.alpha},
+                      {"betaElectrons", f.beta},
+                      {"alphaStrings", f.alpha_strings},
+                      {"betaStrings", f.beta_strings},
+                      {"determinants", f.determinants},
+                      {"memoryMB", f.memory_bytes / (1024.0 * 1024.0)},
+                      {"seconds", f.seconds},
+                      {"feasible", f.feasible},
+                      {"reason", f.reason.empty() ? json(nullptr) : json(f.reason)}};
+    } else {
+        est["fci"] = nullptr;
+    }
 
     json out;
     out["molecule"] = mol;
@@ -112,6 +129,42 @@ json molecular_json(const MolecularResult& m) {
     out["estimate"] = est;
     out["notes"] = m.notes;
     out["warnings"] = m.warnings;
+    out["refusal"] = m.refusal.empty() ? json(nullptr) : json(m.refusal);
+    if (m.fci) {
+        const FCIResultGeneral& f = *m.fci;
+        json fc;
+        fc["converged"] = f.converged;
+        fc["iterations"] = f.iterations;
+        fc["totalEnergy"] = f.total_energy;
+        fc["electronicEnergy"] = f.electronic_energy;
+        fc["correlationEnergy"] = f.correlation_energy;
+        fc["S2"] = f.s2;
+        fc["hfWeight"] = f.hf_weight;
+        fc["orbitals"] = f.orbitals;
+        fc["alphaElectrons"] = f.alpha;
+        fc["betaElectrons"] = f.beta;
+        fc["alphaStrings"] = f.alpha_strings;
+        fc["betaStrings"] = f.beta_strings;
+        fc["determinants"] = f.determinants;
+        json lead = json::array();
+        for (const auto& d : f.leading)
+            lead.push_back({{"coefficient", d.coefficient}, {"alpha", d.alpha}, {"beta", d.beta},
+                            {"excitation", d.excitation}});
+        fc["leadingDeterminants"] = lead;
+        fc["naturalOccupations"] = f.natural_occupations;
+        json hist = json::array();
+        for (const auto& it : f.history)
+            hist.push_back({{"iteration", it.iteration},
+                            {"totalEnergy", it.energy},
+                            {"residual", it.residual},
+                            {"subspace", it.subspace}});
+        fc["history"] = hist;
+        fc["transformSeconds"] = f.transform_seconds;
+        fc["ciSeconds"] = f.ci_seconds;
+        out["fullCI"] = fc;
+    } else {
+        out["fullCI"] = nullptr;
+    }
     if (m.rhf) {
         const RHFResult& h = *m.rhf;
         json r;
@@ -190,6 +243,7 @@ Input parse_input_json(const std::string& text) {
     in.basisDirectory = get_string(j, "basisDirectory", in.basisDirectory);
     in.threads = get_int(j, "threads", in.threads);
     in.memoryMB = get_number(j, "memoryMB", in.memoryMB);
+    in.fciMemoryMB = get_number(j, "fciMemoryMB", in.fciMemoryMB);
     in.scfMaxIter = get_int(j, "scfMaxIter", in.scfMaxIter);
     in.energyConvergence = get_number(j, "energyConvergence", in.energyConvergence);
     in.gradientConvergence = get_number(j, "gradientConvergence", in.gradientConvergence);
@@ -203,7 +257,7 @@ std::string output_to_json(const Output& out, int indent) {
     j["error"] = out.error.empty() ? json(nullptr) : json(out.error);
     if (!is_heh_input(out.input) && !canonical_molecule_name(out.input.molecule).empty()) {
         // General molecules: {"input","error","molecule","basis","estimate","notes",
-        // "warnings","rhf","hf":null,"fci":null,"report"}.
+        // "warnings","refusal","rhf","fullCI","hf":null,"fci":null,"report"}.
         if (out.molecular) {
             const json m = molecular_json(*out.molecular);
             for (auto it = m.begin(); it != m.end(); ++it) j[it.key()] = it.value();
@@ -213,7 +267,9 @@ std::string output_to_json(const Output& out, int indent) {
             j["estimate"] = nullptr;
             j["notes"] = json::array();
             j["warnings"] = json::array();
+            j["refusal"] = nullptr;
             j["rhf"] = nullptr;
+            j["fullCI"] = nullptr;
         }
         j["hf"] = nullptr;
         j["fci"] = nullptr;

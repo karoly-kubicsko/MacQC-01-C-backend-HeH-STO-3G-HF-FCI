@@ -2,12 +2,14 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
 #include <stdexcept>
 
 #include "macqc/gto_integrals.h"
+#include "macqc/mo_integrals.h"
 
 namespace macqc {
 
@@ -85,6 +87,51 @@ std::string thousands(std::size_t v) {
     return std::string(out.rbegin(), out.rend());
 }
 
+std::string thousands_d(double v) {
+    if (v >= 1.0e15) return format("%.2e", v);
+    return thousands(static_cast<std::size_t>(std::llround(v)));
+}
+
+std::string orbital_list(const std::vector<int>& o) {
+    std::string s;
+    for (std::size_t k = 0; k < o.size(); ++k) s += (k ? " " : "") + std::to_string(o[k]);
+    return s;
+}
+
+std::string fci_section(const MolecularResult& r, int level) {
+    const FCIResultGeneral& f = *r.fci;
+    std::string s = "\nFull CI         all electrons correlated, M_S = 0 determinants, lowest singlet state\n";
+    s += format("    %d electrons (%d alpha, %d beta) in %d orbitals: %s alpha x %s beta strings = %s determinants\n",
+                f.alpha + f.beta, f.alpha, f.beta, f.orbitals, thousands(f.alpha_strings).c_str(),
+                thousands(f.beta_strings).c_str(), thousands(f.determinants).c_str());
+    s += format("    integral transformation to the RHF orbitals: %.2f s\n", f.transform_seconds);
+    s += "    Davidson method: diagonal preconditioner, singlet projection (C = C^T),\n";
+    s += "    converged when |H c - E c| < 1.0e-06 and |dE| < 1.0e-10 E_h\n";
+    if (level >= 2) {
+        s += "    iter        total energy (E_h)        residual   subspace\n";
+        for (const auto& it : f.history)
+            s += format("    %4d  %24.12f  %12.3e  %6d\n", it.iteration, it.energy, it.residual, it.subspace);
+    }
+    s += f.converged ? format("    Davidson converged in %d iterations (%.2f s)\n", f.iterations, f.ci_seconds)
+                     : format("    Davidson NOT converged after %d iterations\n", f.iterations);
+    s += "\nFull CI energies (E_h)\n";
+    s += format("    RHF energy                %20.10f\n", r.rhf->total_energy);
+    s += format("    Full CI energy            %20.10f\n", f.total_energy);
+    s += format("    correlation energy        %20.10f\n", f.correlation_energy);
+    s += format("    <S^2>                     %20.10f\n", f.s2);
+    s += format("    weight of the RHF determinant |C_0|^2  %.8f\n", f.hf_weight);
+    s += "\nLeading determinants (occupied MOs, alpha | beta; excitation level relative to RHF)\n";
+    for (const auto& d : f.leading)
+        s += format("    %+12.8f   %-14s | %-14s  %d\n", d.coefficient, orbital_list(d.alpha).c_str(),
+                    orbital_list(d.beta).c_str(), d.excitation);
+    const std::size_t nshow = level >= 2 ? std::min<std::size_t>(f.natural_occupations.size(), 20)
+                                         : std::min<std::size_t>(f.natural_occupations.size(), 8);
+    s += format("\nNatural orbital occupation numbers (largest %zu; they sum to %d)\n", nshow, f.alpha + f.beta);
+    for (std::size_t k = 0; k < nshow; ++k)
+        s += format("  %12.8f", f.natural_occupations[k]) + ((k % 5 == 4 || k + 1 == nshow) ? "\n" : "");
+    return s;
+}
+
 }  // namespace
 
 std::string validate_molecular(const MolecularInput& in) {
@@ -96,9 +143,11 @@ std::string validate_molecular(const MolecularInput& in) {
         return "unknown basis set '" + in.basis + "' (available: " + list + ")";
     }
     std::string method;
-    for (char c : in.method) method += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-    if (method != "RHF" && method != "HF")
-        return "method must be RHF (Full CI for H2, LiH and H2O follows in a later version)";
+    for (char c : in.method)
+        if (c != '-' && c != ' ') method += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+    if (method != "RHF" && method != "HF" && method != "FCI" && method != "FULLCI")
+        return "method must be RHF or FCI";
+    if (!std::isfinite(in.fci_memory_mb) || in.fci_memory_mb < 64.0) return "fciMemoryMB must be at least 64";
     if (!std::isfinite(in.R) || in.R < 0.0) return "R must be a positive, finite number (bohr)";
     if (in.R > 0.0 && in.R < 0.3) return "R must be at least 0.3 bohr (0.16 \xC3\x85)";
     if (in.R > 50.0) return "R must be at most 50 bohr (26.5 \xC3\x85)";
@@ -163,7 +212,12 @@ MolecularResult prepare_molecular(const MolecularInput& input) {
     r.input = input;
     r.input.molecule = canonical_molecule_name(input.molecule);
     r.input.basis = canonical_basis_name(input.basis);
-    r.input.method = "RHF";
+    {
+        std::string m;
+        for (char c : input.method)
+            if (c != '-' && c != ' ') m += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        r.input.method = (m == "FCI" || m == "FULLCI") ? "FCI" : "RHF";
+    }
     if (!(r.input.R > 0.0)) r.input.R = default_bond_length(r.input.molecule);
     r.molecule = make_molecule(r.input.molecule, r.input.R, r.input.angle);
     r.basis = build_basis(r.molecule, r.input.basis, r.input.basis_directory);
@@ -181,6 +235,29 @@ MolecularResult prepare_molecular(const MolecularInput& input) {
     e.threads = resolve_threads(r.input.threads);
     e.rhf_seconds =
         estimate_rhf_seconds(r.basis, e.eri_stored, e.threads, expected_scf_iterations(r.molecule.name));
+    e.total_seconds = e.rhf_seconds;
+    if (r.input.method == "FCI") {
+        const int nel = r.molecule.electrons();
+        const double pass = estimate_rhf_seconds(r.basis, false, e.threads, 1);
+        e.fci = estimate_fci(r.basis.n_functions, r.basis.n_functions, nel / 2, nel / 2, e.threads,
+                             r.input.fci_memory_mb, pass);
+        e.total_seconds += e.fci->seconds;
+        if (!e.fci->feasible) {
+            r.refusal = e.fci->reason;
+            if (r.molecule.name == "H2O")
+                r.refusal += " Full CI for H2O is impossible in every basis set offered; use RHF.";
+            else if (r.molecule.name == "LiH")
+                r.refusal += " For LiH, Full CI is possible up to aug-cc-pCVTZ (11 million determinants).";
+            return r;
+        }
+        if (e.total_seconds > kLongCalculationSeconds)
+            r.warnings.push_back(format(
+                "Long calculation: Full CI with %s determinants in %d orbitals after RHF; about %.1f GB of "
+                "memory. Estimated time %s on %d threads.",
+                thousands(static_cast<std::size_t>(e.fci->determinants)).c_str(), e.fci->orbitals,
+                e.fci->memory_bytes / (1024.0 * 1024.0 * 1024.0), human_seconds(e.total_seconds).c_str(), e.threads));
+        return r;
+    }
     if (e.rhf_seconds > kLongCalculationSeconds)
         r.warnings.push_back(format(
             "Long calculation: %d basis functions (up to %c functions); %s two-electron integrals %s. "
@@ -194,7 +271,8 @@ MolecularResult prepare_molecular(const MolecularInput& input) {
     return r;
 }
 
-void run_molecular(MolecularResult& r, const RHFProgress& progress) {
+void run_molecular(MolecularResult& r, const RHFProgress& progress, const FCIProgress& fci_progress) {
+    if (!r.refusal.empty()) throw std::runtime_error(r.refusal);
     RHFOptions opt;
     opt.max_iter = r.input.max_iter;
     opt.energy_tol = r.input.energy_tol;
@@ -208,6 +286,19 @@ void run_molecular(MolecularResult& r, const RHFProgress& progress) {
                                     r.rhf->removed_functions, opt.lindep_tol));
     if (!r.rhf->converged)
         r.warnings.push_back(format("The SCF did not converge in %d iterations.", r.rhf->iterations));
+    if (r.input.method == "FCI" && r.rhf->converged) {
+        const auto t0 = std::chrono::steady_clock::now();
+        const MOIntegrals mo = transform_to_mo(r.basis, r.rhf->H, r.rhf->C, r.input.threads);
+        const double transform = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        FCIOptions fo;
+        fo.threads = r.input.threads;
+        fo.memory_limit_mb = r.input.fci_memory_mb;
+        const int nocc = r.rhf->n_occupied;
+        r.fci = run_fci_determinants(mo, nocc, nocc, r.rhf->nuclear_repulsion, r.rhf->total_energy, fo, fci_progress);
+        r.fci->transform_seconds = transform;
+        if (!r.fci->converged)
+            r.warnings.push_back(format("The Full CI (Davidson) did not converge in %d iterations.", r.fci->iterations));
+    }
     r.report = molecular_report(r);
 }
 
@@ -217,7 +308,8 @@ std::string molecular_report(const MolecularResult& r) {
     const std::string rule(78, '=');
     const Molecule& mol = r.molecule;
     std::string s;
-    s += "\xCE\xA8Lab \xE2\x80\x93 restricted Hartree-Fock\n" + rule + "\n";
+    s += std::string("\xCE\xA8Lab \xE2\x80\x93 restricted Hartree-Fock") +
+         (r.input.method == "FCI" ? " and Full CI" : "") + "\n" + rule + "\n";
     s += format("Molecule        %s, %d electrons, closed shell (charge %d, singlet)\n", mol.name.c_str(),
                 mol.electrons(), mol.charge);
     if (mol.name == "H2O")
@@ -248,7 +340,16 @@ std::string molecular_report(const MolecularResult& r) {
     s += format("    two-electron integrals: %s unique, ", thousands(e.unique_eris).c_str());
     s += e.eri_stored ? format("kept in memory (%.1f MB)\n", e.eri_memory_mb)
                       : format("integral-direct (storing them would need %.1f GB)\n", e.eri_memory_mb / 1024.0);
+    if (e.fci) {
+        const FCISize& f = *e.fci;
+        s += format("    Full CI: %d electrons (%d alpha, %d beta) in %d orbitals, %s x %s = %s determinants,\n"
+                    "             about %.0f MB of memory, estimated time %s\n",
+                    f.alpha + f.beta, f.alpha, f.beta, f.orbitals, thousands_d(f.alpha_strings).c_str(),
+                    thousands_d(f.beta_strings).c_str(), thousands_d(f.determinants).c_str(),
+                    f.memory_bytes / (1024.0 * 1024.0), human_seconds(e.total_seconds).c_str());
+    }
     for (const auto& w : r.warnings) s += "Warning: " + w + "\n";
+    if (!r.refusal.empty()) s += "NOT POSSIBLE: " + r.refusal + "\n";
     if (!r.rhf) return s;
 
     const RHFResult& h = *r.rhf;
@@ -289,6 +390,7 @@ std::string molecular_report(const MolecularResult& r) {
     if (nocc >= 1 && nocc < static_cast<int>(h.orbital_energies.size()))
         s += format("    HOMO %.8f E_h, LUMO %.8f E_h, gap %.8f E_h\n", h.orbital_energies[nocc - 1],
                     h.orbital_energies[nocc], h.orbital_energies[nocc] - h.orbital_energies[nocc - 1]);
+    if (r.fci) s += fci_section(r, level);
     return s;
 }
 

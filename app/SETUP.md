@@ -44,7 +44,7 @@ Use *File ▸ Add Files to "PsiLab"…* (or drag from Finder). Always: **"Copy i
 | What | Files | Target membership |
 | --- | --- | --- |
 | App | everything in `app/MacQC/` (12 `.swift` files, `MacQC-Bridging-Header.h` and `Assets.xcassets`) | `.swift`: PsiLab; header: none needed |
-| Backend sources | `backend/src/linalg.cpp`, `integrals.cpp`, `report.cpp`, `scf.cpp`, `fci.cpp`, `molecule.cpp`, `basis.cpp`, `gto_integrals.cpp`, `rhf.cpp`, `molecular.cpp`, `calculation.cpp`, `api.cpp` | PsiLab |
+| Backend sources | `backend/src/linalg.cpp`, `integrals.cpp`, `report.cpp`, `scf.cpp`, `fci.cpp`, `molecule.cpp`, `basis.cpp`, `gto_integrals.cpp`, `rhf.cpp`, `molecular.cpp`, `gemm.cpp`, `mo_integrals.cpp`, `ci.cpp`, `calculation.cpp`, `api.cpp` | PsiLab |
 | Backend headers | `backend/include/macqc/*.h` | (headers only) |
 | JSON library | `third_party/nlohmann/json.hpp` | (header only) |
 
