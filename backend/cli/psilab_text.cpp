@@ -6,6 +6,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
+#include <map>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -138,11 +139,71 @@ std::string summary_text(const macqc::Output& out) {
     return s;
 }
 
+std::string general_summary(const macqc::Output& out) {
+    const macqc::MolecularResult& m = *out.molecular;
+    std::vector<std::string> lines;
+    lines.push_back("\xCE\xA8Lab \xE2\x80\x93 " + m.molecule.name + ", RHF/" + m.basis.name);
+    if (m.molecule.name == "H2O")
+        lines.push_back("R(O-H) = " + length_both(m.input.R, 4) + format(", angle H-O-H = %.2f deg", m.input.angle));
+    else
+        lines.push_back(std::string(m.molecule.name == "LiH" ? "R(Li-H) = " : "R(H-H) = ") + length_both(m.input.R, 4));
+    std::string per_atom;
+    std::vector<std::string> seen;
+    for (const auto& a : m.basis.atoms) {
+        if (std::find(seen.begin(), seen.end(), a.symbol) != seen.end()) continue;
+        seen.push_back(a.symbol);
+        per_atom += (per_atom.empty() ? "" : ", ") + a.symbol + " " + a.contraction;
+    }
+    lines.push_back(format("%d basis functions (%s)", m.basis.n_functions, per_atom.c_str()));
+    for (const auto& n : m.notes) lines.push_back("Note: " + n);
+    if (m.rhf) {
+        const auto& h = *m.rhf;
+        lines.push_back("");
+        lines.push_back("Hartree-Fock (RHF)");
+        lines.push_back(format("  converged:            %s (%d iterations)", h.converged ? "yes" : "no", h.iterations));
+        lines.push_back(format("  total energy:         %.10f E_h", h.total_energy));
+        lines.push_back(format("  electronic energy:    %.10f E_h", h.electronic_energy));
+        lines.push_back(format("  nuclear repulsion:    %.10f E_h", h.nuclear_repulsion));
+        const int no = h.n_occupied;
+        if (no >= 1 && no < static_cast<int>(h.orbital_energies.size()))
+            lines.push_back(format("  HOMO, LUMO:           %.8f, %.8f E_h", h.orbital_energies[no - 1],
+                                   h.orbital_energies[no]));
+    }
+    for (const auto& w : m.warnings) lines.push_back("Warning: " + w);
+    if (!out.error.empty()) {
+        lines.push_back("");
+        lines.push_back("Error: " + out.error);
+    }
+    std::string s;
+    for (std::size_t i = 0; i < lines.size(); ++i) s += (i ? "\n" : "") + lines[i];
+    return s;
+}
+
 }  // namespace
 
 Settings parse_input_text(const std::string& text) {
-    Settings s;
-    std::set<std::string> seen;
+    struct Entry {
+        std::string key, value;
+        int line = 0;
+    };
+    // Canonical key for every accepted spelling.
+    auto canonical_key = [](const std::string& k) -> std::string {
+        if (k == "molecule") return "molecule";
+        if (k == "basis" || k == "basisset") return "basis";
+        if (k == "r" || k == "bondlength") return "R";
+        if (k == "angle" || k == "bondangle" || k == "hoh") return "angle";
+        if (k == "method") return "method";
+        if (k == "zetahe" || k == "zeta1") return "zeta_He";
+        if (k == "zetah" || k == "zeta2") return "zeta_H";
+        if (k == "exacterf") return "exact_erf";
+        if (k == "scan") return "scan";
+        if (k == "scanstep") return "scan_step";
+        if (k == "threads") return "threads";
+        if (k == "memory" || k == "memorymb") return "memory";
+        if (k == "basisdir" || k == "basisdirectory") return "basis_dir";
+        return "";
+    };
+    std::map<std::string, Entry> entries;
     std::istringstream in(text);
     std::string raw;
     int line = 0;
@@ -157,30 +218,105 @@ Settings parse_input_text(const std::string& text) {
         const std::string key = trim(content.substr(0, eq));
         const std::string value = trim(content.substr(eq + 1));
         if (value.empty()) fail(line, "'" + key + "' has no value");
-        const std::string k = normalize_key(key);
-        if (!seen.insert(k).second) fail(line, "'" + key + "' is given twice");
-
-        if (k == "basis" || k == "basisset") {
-            s.input.nGaussians = parse_basis(value, line);
-        } else if (k == "r" || k == "bondlength") {
-            s.input.R = parse_length(value, line);
-        } else if (k == "zetahe" || k == "zeta1") {
-            s.input.zeta1 = parse_number(value, line, key);
-        } else if (k == "zetah" || k == "zeta2") {
-            s.input.zeta2 = parse_number(value, line, key);
-        } else if (k == "exacterf") {
-            s.input.exactErf = parse_bool(value, line, key);
-        } else if (k == "scan") {
-            s.scan = parse_bool(value, line, key);
-        } else if (k == "scanstep") {
-            s.scanStep = parse_number(value, line, key);
-            if (!(s.scanStep > 0.0) || s.scanStep > kScanEnd - kScanStart)
-                fail(line, format("scan_step must be > 0 and <= %.1f bohr", kScanEnd - kScanStart));
-        } else {
+        const std::string k = canonical_key(normalize_key(key));
+        if (k.empty())
             fail(line, "unknown key '" + key +
-                           "' (known: basis, R, zeta_He, zeta_H, exact_erf, scan, scan_step)");
+                           "' (known: molecule, basis, R, angle, method, zeta_He, zeta_H, exact_erf, scan, "
+                           "scan_step, threads, memory, basis_dir)");
+        if (entries.count(k)) fail(line, "'" + key + "' is given twice");
+        entries[k] = Entry{key, value, line};
+    }
+
+    Settings s;
+    std::string molecule = "HeH+";
+    if (entries.count("molecule")) {
+        const Entry& e = entries["molecule"];
+        molecule = macqc::canonical_molecule_name(e.value);
+        if (molecule.empty()) fail(e.line, "molecule must be HeH+, H2, LiH or H2O, got '" + e.value + "'");
+    }
+    s.input.molecule = molecule;
+    const bool heh = molecule == "HeH+";
+    auto only = [&](const char* key, bool allowed, const std::string& who) {
+        auto it = entries.find(key);
+        if (it != entries.end() && !allowed)
+            fail(it->second.line, "'" + it->second.key + "' applies to " + who + " only (molecule = " + molecule + ")");
+    };
+    only("zeta_He", heh, "HeH+");
+    only("zeta_H", heh, "HeH+");
+    only("exact_erf", heh, "HeH+");
+    only("scan", heh, "HeH+");
+    only("scan_step", heh, "HeH+");
+    only("angle", molecule == "H2O", "H2O");
+    only("method", !heh, "H2, LiH and H2O (HeH+ always runs Hartree-Fock and Full CI)");
+    only("threads", !heh, "H2, LiH and H2O");
+    only("memory", !heh, "H2, LiH and H2O");
+    only("basis_dir", !heh, "H2, LiH and H2O");
+
+    std::vector<std::pair<std::string, Entry>> ordered(entries.begin(), entries.end());
+    std::sort(ordered.begin(), ordered.end(),
+              [](const auto& a, const auto& b) { return a.second.line < b.second.line; });
+    for (const auto& [k, e] : ordered) {
+        const int ln = e.line;
+        const std::string& value = e.value;
+        if (k == "basis") {
+            if (heh) {
+                s.input.nGaussians = parse_basis(value, ln);
+            } else {
+                s.input.basis = macqc::canonical_basis_name(value);
+                if (s.input.basis.empty()) {
+                    std::string list;
+                    for (const auto& b : macqc::supported_basis_sets()) list += (list.empty() ? "" : ", ") + b;
+                    fail(ln, "basis must be one of " + list + ", got '" + value + "'");
+                }
+            }
+        } else if (k == "R") {
+            s.input.R = parse_length(value, ln);
+            s.rGiven = true;
+        } else if (k == "angle") {
+            s.input.angle = parse_number(value, ln, e.key);
+        } else if (k == "method") {
+            std::string m;
+            for (char c : lower(value))
+                if (c != '-' && c != ' ') m += c;
+            if (m == "rhf" || m == "hf" || m == "hartreefock") {
+                s.input.method = "RHF";
+            } else if (m == "fci" || m == "fullci") {
+                fail(ln, "Full CI for H2, LiH and H2O is not available yet; use method = RHF");
+            } else {
+                fail(ln, "method must be RHF, got '" + value + "'");
+            }
+        } else if (k == "zeta_He") {
+            s.input.zeta1 = parse_number(value, ln, e.key);
+        } else if (k == "zeta_H") {
+            s.input.zeta2 = parse_number(value, ln, e.key);
+        } else if (k == "exact_erf") {
+            s.input.exactErf = parse_bool(value, ln, e.key);
+        } else if (k == "scan") {
+            s.scan = parse_bool(value, ln, e.key);
+        } else if (k == "scan_step") {
+            s.scanStep = parse_number(value, ln, e.key);
+            if (!(s.scanStep > 0.0) || s.scanStep > kScanEnd - kScanStart)
+                fail(ln, format("scan_step must be > 0 and <= %.1f bohr", kScanEnd - kScanStart));
+        } else if (k == "threads") {
+            const double t = parse_number(value, ln, e.key);
+            if (t != std::floor(t) || t < 0 || t > 64) fail(ln, "threads must be an integer from 0 (all) to 64");
+            s.input.threads = static_cast<int>(t);
+        } else if (k == "memory") {
+            std::istringstream ms(value);
+            std::string number, unit, extra;
+            ms >> number >> unit >> extra;
+            if (!extra.empty()) fail(ln, "memory has unexpected text '" + extra + "'");
+            double mb = parse_number(number, ln, e.key);
+            const std::string u = lower(unit);
+            if (u == "gb" || u == "g") mb *= 1024.0;
+            else if (!u.empty() && u != "mb" && u != "m") fail(ln, "memory unit must be MB or GB");
+            if (mb < 0.0) fail(ln, "memory must not be negative");
+            s.input.memoryMB = mb;
+        } else if (k == "basis_dir") {
+            s.input.basisDirectory = value;
         }
     }
+    if (!heh && !s.rGiven) s.input.R = macqc::default_bond_length(molecule);
     const std::string problem = macqc::validate(s.input);
     if (!problem.empty()) throw std::runtime_error(problem);
     return s;
@@ -237,10 +373,46 @@ std::optional<CurveMinimum> curve_minimum(const std::vector<std::pair<double, do
     return m;
 }
 
+std::string estimate_text(const Settings& settings) {
+    if (macqc::is_heh_input(settings.input)) return "";
+    macqc::Input in = settings.input;
+    in.estimateOnly = true;
+    in.printLevel = 1;
+    const macqc::Output out = macqc::run_calculation(in);
+    if (!out.molecular) return "Error: " + out.error + "\n";
+    const auto& e = out.molecular->estimate;
+    std::string t = out.report;
+    t += format("Estimated wall time: %.0f s on %d threads (rough estimate)\n", e.rhf_seconds, e.threads);
+    return t;
+}
+
+std::vector<std::string> estimate_warnings(const Settings& settings) {
+    if (macqc::is_heh_input(settings.input)) return {};
+    macqc::Input in = settings.input;
+    in.estimateOnly = true;
+    in.printLevel = 0;
+    const macqc::Output out = macqc::run_calculation(in);
+    if (!out.molecular) return {};
+    return out.molecular->warnings;
+}
+
 RunResult run_to_text(const Settings& settings) {
     RunResult result;
     macqc::Input in = settings.input;
     in.printLevel = 2;
+    if (!macqc::is_heh_input(in)) {
+        macqc::Output out = macqc::run_calculation(in);
+        result.output = out;
+        if (!out.molecular || !out.molecular->rhf) {
+            result.error = out.error.empty() ? "no result" : out.error;
+            return result;
+        }
+        result.error = out.error;
+        const std::string rule(78, '=');
+        result.text = general_summary(out) + "\n\n" + rule + "\nDETAILED REPORT\n" + rule + "\n" + out.report;
+        if (result.text.back() != '\n') result.text += "\n";
+        return result;
+    }
     macqc::Output out = macqc::run_calculation(in);
     result.output = out;
     if (!out.hf) {

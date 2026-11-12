@@ -1,6 +1,7 @@
 // ΨLab for the terminal (Linux, macOS): reads a plain-text input file, writes a
 // plain-text output file.  Usage: psilab INPUT [OUTPUT]   (see psilab --help)
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iostream>
@@ -9,22 +10,82 @@
 
 #include "psilab_text.h"
 
+#if defined(__APPLE__)
+#include <mach-o/dyld.h>
+#endif
+#include <sys/stat.h>
+#include <unistd.h>
+
 namespace {
 
 void usage(const char* prog) {
     std::fprintf(stdout,
-                 "\xCE\xA8Lab - HeH+ Hartree-Fock and Full CI in an STO-nG basis\n\n"
+                 "\xCE\xA8Lab - Hartree-Fock (and Full CI for HeH+) in the terminal\n\n"
                  "Usage:\n"
                  "  %s INPUT [OUTPUT]   run INPUT, write the results to OUTPUT\n"
                  "                      (default: INPUT with the extension replaced by .out)\n"
-                 "  %s --example        print a commented example input file\n"
+                 "  %s --estimate INPUT size of the calculation and time estimate, no calculation\n"
+                 "  %s --example        print a commented example input file (HeH+)\n"
                  "  %s --version        print the version\n"
                  "  %s --help           this help\n\n"
                  "Input: one 'key = value' per line, '#' starts a comment. Keys:\n"
-                 "  basis = STO-1G | STO-2G | STO-3G      R = <number> [bohr | angstrom]\n"
-                 "  zeta_He = <number>   zeta_H = <number>   exact_erf = yes | no\n"
-                 "  scan = yes | no      scan_step = <bohr>  (potential curve, R = 0.8 ... 5.0 bohr)\n",
-                 prog, prog, prog, prog);
+                 "  molecule = HeH+ | H2 | LiH | H2O      (default HeH+)\n"
+                 "  R = <number> [bohr | angstrom]       bond length (H2O: O-H)\n"
+                 "HeH+ (Hartree-Fock and Full CI, Szabo-Ostlund):\n"
+                 "  basis = STO-1G | STO-2G | STO-3G      zeta_He = <number>   zeta_H = <number>\n"
+                 "  exact_erf = yes | no   scan = yes | no   scan_step = <bohr>  (R = 0.8 ... 5.0 bohr)\n"
+                 "H2, LiH, H2O (restricted Hartree-Fock):\n"
+                 "  basis = aug-cc-pVDZ | aug-cc-pVTZ | aug-cc-pVQZ | aug-cc-pV5Z |\n"
+                 "          aug-cc-pCVDZ | aug-cc-pCVTZ | aug-cc-pCVQZ | aug-cc-pCV5Z\n"
+                 "  angle = <degrees> (H2O)   method = RHF   threads = <n>   memory = <MB>\n"
+                 "  basis_dir = <folder with the .gbs files> (or environment variable PSILAB_BASIS_DIR)\n",
+                 prog, prog, prog, prog, prog);
+}
+
+bool is_directory(const std::string& path) {
+    struct stat st;
+    return stat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
+}
+
+// <folder of the executable>/../share/psilab/basis, if it exists (installed psilab).
+std::string installed_basis_directory() {
+    std::string exe;
+#if defined(__APPLE__)
+    char buf[4096];
+    uint32_t size = sizeof buf;
+    if (_NSGetExecutablePath(buf, &size) == 0) exe = buf;
+#elif defined(__linux__)
+    char buf[4096];
+    const ssize_t n = readlink("/proc/self/exe", buf, sizeof buf - 1);
+    if (n > 0) exe.assign(buf, static_cast<std::size_t>(n));
+#endif
+    const auto slash = exe.find_last_of('/');
+    if (slash == std::string::npos) return "";
+    const std::string dir = exe.substr(0, slash) + "/../share/psilab/basis";
+    return is_directory(dir) ? dir : "";
+}
+
+std::string read_input(const std::string& path, psilab::Settings& settings, int& status) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
+        std::fprintf(stderr, "error: cannot open %s\n", path.c_str());
+        status = 2;
+        return "";
+    }
+    const std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    try {
+        settings = psilab::parse_input_text(text);
+    } catch (const std::exception& e) {
+        std::fprintf(stderr, "error in %s: %s\n", path.c_str(), e.what());
+        status = 2;
+        return "";
+    }
+    // Basis-set folder: input file > PSILAB_BASIS_DIR > installed copy > source tree.
+    const char* env = std::getenv("PSILAB_BASIS_DIR");
+    if (settings.input.basisDirectory.empty() && !(env && *env))
+        settings.input.basisDirectory = installed_basis_directory();
+    status = 0;
+    return text;
 }
 
 std::string default_output_name(const std::string& input) {
@@ -51,26 +112,34 @@ int main(int argc, char** argv) {
         std::cout << psilab::example_input();
         return 0;
     }
+    if (!std::strcmp(argv[1], "--estimate")) {
+        if (argc != 3) {
+            std::fprintf(stderr, "usage: %s --estimate INPUT\n", argv[0]);
+            return 2;
+        }
+        psilab::Settings settings;
+        int status = 0;
+        read_input(argv[2], settings, status);
+        if (status) return status;
+        const std::string t = psilab::estimate_text(settings);
+        if (t.empty()) {
+            std::printf("HeH+ (STO-nG): a two-function calculation, it takes milliseconds.\n");
+            return 0;
+        }
+        std::fputs(t.c_str(), stdout);
+        return t.rfind("Error: ", 0) == 0 ? 1 : 0;
+    }
     if (argc > 3) {
         std::fprintf(stderr, "error: too many arguments (see %s --help)\n", argv[0]);
         return 2;
     }
 
     const std::string inputPath = argv[1];
-    std::ifstream file(inputPath, std::ios::binary);
-    if (!file) {
-        std::fprintf(stderr, "error: cannot open %s\n", inputPath.c_str());
-        return 2;
-    }
-    const std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-
     psilab::Settings settings;
-    try {
-        settings = psilab::parse_input_text(text);
-    } catch (const std::exception& e) {
-        std::fprintf(stderr, "error in %s: %s\n", inputPath.c_str(), e.what());
-        return 2;
-    }
+    int status = 0;
+    read_input(inputPath, settings, status);
+    if (status) return status;
+    for (const auto& w : psilab::estimate_warnings(settings)) std::fprintf(stderr, "warning: %s\n", w.c_str());
 
     const psilab::RunResult result = psilab::run_to_text(settings);
     if (result.text.empty()) {
@@ -88,8 +157,12 @@ int main(int argc, char** argv) {
 
     const auto& o = *result.output;
     std::printf("Wrote %s\n", outputPath.c_str());
-    std::printf("  HF  total energy: %.8f E_h\n", o.hf->total_energy);
-    if (o.fci) std::printf("  FCI total energy: %.8f E_h\n", o.fci->total_energy);
+    if (o.molecular && o.molecular->rhf) {
+        std::printf("  RHF total energy: %.10f E_h\n", o.molecular->rhf->total_energy);
+    } else {
+        std::printf("  HF  total energy: %.8f E_h\n", o.hf->total_energy);
+        if (o.fci) std::printf("  FCI total energy: %.8f E_h\n", o.fci->total_energy);
+    }
     if (!result.error.empty()) {
         std::fprintf(stderr, "warning: %s\n", result.error.c_str());
         return 1;

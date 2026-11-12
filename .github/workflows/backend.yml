@@ -3,6 +3,12 @@ name: backend
 on:
   push:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Also run the large RHF cases (up to 341 basis functions, about 30 min)"
+        type: boolean
+        default: false
 
 jobs:
   build-and-test:
@@ -30,3 +36,49 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build --output-on-failure
+
+      - name: Terminal version, general molecule
+        run: |
+          printf 'molecule = H2O\nbasis = aug-cc-pVDZ\nR = 0.9572 angstrom\nangle = 104.52\n' > h2o.inp
+          ./build/psilab h2o.inp h2o.out
+          head -n 20 h2o.out
+          ./build/psilab --estimate h2o.inp
+
+  # Recomputes the stored reference values with PySCF (an independent program), so the
+  # numbers the C++ tests compare with are reproducible.
+  pyscf-reference:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PySCF
+        run: python3 -m pip install pyscf
+
+      - name: Integral invariants (S, T, V, ERI; l up to 5)
+        run: python3 reference/pyscf_integral_reference.py --check
+
+      - name: RHF energies (cases with up to 110 basis functions)
+        run: python3 reference/pyscf_rhf_reference.py --check --max-nbf 110
+
+  # On request only: every RHF reference case, including H2O/aug-cc-pCV5Z (341 functions).
+  rhf-full:
+    if: github.event_name == 'workflow_dispatch' && inputs.full
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel --target macqc_rhf_tests
+
+      - name: All RHF cases against PySCF
+        env:
+          PSILAB_TEST_MAX_NBF: "400"
+          PSILAB_BASIS_DIR: ${{ github.workspace }}/basis
+        run: ./build/macqc_rhf_tests

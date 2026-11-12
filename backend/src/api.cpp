@@ -26,6 +26,20 @@ json matrix_json(const Matrix& m) {
 }
 
 json input_json(const Input& in) {
+    if (!is_heh_input(in) && !canonical_molecule_name(in.molecule).empty())
+        return {{"molecule", in.molecule},
+                {"basis", in.basis},
+                {"R", in.R},
+                {"angle", in.angle},
+                {"method", in.method},
+                {"basisDirectory", in.basisDirectory},
+                {"threads", in.threads},
+                {"memoryMB", in.memoryMB},
+                {"scfMaxIter", in.scfMaxIter},
+                {"energyConvergence", in.energyConvergence},
+                {"gradientConvergence", in.gradientConvergence},
+                {"estimateOnly", in.estimateOnly},
+                {"printLevel", in.printLevel}};
     return {{"R", in.R},           {"zeta1", in.zeta1},         {"zeta2", in.zeta2},
             {"ZA", in.ZA},         {"ZB", in.ZB},               {"nGaussians", in.nGaussians},
             {"exactErf", in.exactErf}, {"maxIter", in.maxIter}, {"convergence", in.convergence},
@@ -49,6 +63,94 @@ int get_int(const json& j, const char* key, int fallback) {
     return static_cast<int>(v);
 }
 
+std::string get_string(const json& j, const char* key, const std::string& fallback) {
+    auto it = j.find(key);
+    if (it == j.end() || it->is_null()) return fallback;
+    if (!it->is_string()) throw std::runtime_error(std::string("\"") + key + "\" must be a string");
+    return it->get<std::string>();
+}
+
+json molecular_json(const MolecularResult& m) {
+    json mol;
+    mol["name"] = m.molecule.name;
+    mol["electrons"] = m.molecule.electrons();
+    mol["charge"] = m.molecule.charge;
+    mol["R"] = m.input.R;
+    mol["angle"] = m.molecule.name == "H2O" ? json(m.input.angle) : json(nullptr);
+    mol["nuclearRepulsion"] = m.molecule.nuclear_repulsion();
+    json atoms = json::array();
+    for (const Atom& a : m.molecule.atoms)
+        atoms.push_back({{"symbol", a.symbol}, {"Z", a.Z}, {"position", {a.position[0], a.position[1], a.position[2]}}});
+    mol["atoms"] = atoms;
+
+    json basis;
+    basis["name"] = m.basis.name;
+    basis["functions"] = m.basis.n_functions;
+    basis["shells"] = m.basis.shells.size();
+    basis["maxL"] = m.basis.max_l;
+    json ba = json::array();
+    for (const auto& a : m.basis.atoms)
+        ba.push_back({{"symbol", a.symbol},
+                      {"basis", a.basis},
+                      {"contraction", a.contraction},
+                      {"primitives", a.primitives},
+                      {"functions", a.functions}});
+    basis["atoms"] = ba;
+
+    const CostEstimate& e = m.estimate;
+    json est = {{"basisFunctions", e.basis_functions},
+                {"uniqueIntegrals", e.unique_eris},
+                {"integralMemoryMB", e.eri_memory_mb},
+                {"integralsStored", e.eri_stored},
+                {"threads", e.threads},
+                {"rhfSeconds", e.rhf_seconds},
+                {"longCalculation", e.rhf_seconds > kLongCalculationSeconds}};
+
+    json out;
+    out["molecule"] = mol;
+    out["basis"] = basis;
+    out["estimate"] = est;
+    out["notes"] = m.notes;
+    out["warnings"] = m.warnings;
+    if (m.rhf) {
+        const RHFResult& h = *m.rhf;
+        json r;
+        r["converged"] = h.converged;
+        r["iterations"] = h.iterations;
+        r["totalEnergy"] = h.total_energy;
+        r["electronicEnergy"] = h.electronic_energy;
+        r["nuclearRepulsion"] = h.nuclear_repulsion;
+        r["kineticEnergy"] = h.kinetic_energy;
+        r["nuclearAttractionEnergy"] = h.nuclear_attraction_energy;
+        r["electronRepulsionEnergy"] = h.two_electron_energy;
+        r["virialRatio"] = h.virial_ratio;
+        r["orbitalEnergies"] = h.orbital_energies;
+        r["occupiedOrbitals"] = h.n_occupied;
+        const int no = h.n_occupied, nmo = static_cast<int>(h.orbital_energies.size());
+        r["homo"] = no >= 1 ? json(h.orbital_energies[no - 1]) : json(nullptr);
+        r["lumo"] = no < nmo ? json(h.orbital_energies[no]) : json(nullptr);
+        r["smallestOverlapEigenvalue"] = h.smallest_overlap_eigenvalue;
+        r["removedFunctions"] = h.removed_functions;
+        r["integralsStored"] = h.eri_stored;
+        r["uniqueIntegrals"] = h.unique_integrals;
+        r["threads"] = h.threads;
+        r["integralSeconds"] = h.integral_seconds;
+        r["scfSeconds"] = h.scf_seconds;
+        json hist = json::array();
+        for (const auto& it : h.history)
+            hist.push_back({{"iteration", it.iteration},
+                            {"totalEnergy", it.energy},
+                            {"deltaE", it.delta_e},
+                            {"gradient", it.gradient},
+                            {"diis", it.diis}});
+        r["scfHistory"] = hist;
+        out["rhf"] = r;
+    } else {
+        out["rhf"] = nullptr;
+    }
+    return out;
+}
+
 bool get_bool(const json& j, const char* key, bool fallback) {
     auto it = j.find(key);
     if (it == j.end() || it->is_null()) return fallback;
@@ -67,6 +169,11 @@ Input parse_input_json(const std::string& text) {
     }
     if (!j.is_object()) throw std::runtime_error("input JSON must be an object");
     Input in;
+    in.molecule = get_string(j, "molecule", in.molecule);
+    const std::string canonical = canonical_molecule_name(in.molecule);
+    if (canonical.empty()) throw std::runtime_error("\"molecule\" must be HeH+, H2, LiH or H2O");
+    in.molecule = canonical;
+    if (canonical != "HeH+") in.R = 0.0;  // default bond length of the molecule unless given
     in.R = get_number(j, "R", in.R);
     in.zeta1 = get_number(j, "zeta1", in.zeta1);
     in.zeta2 = get_number(j, "zeta2", in.zeta2);
@@ -77,6 +184,16 @@ Input parse_input_json(const std::string& text) {
     in.maxIter = get_int(j, "maxIter", in.maxIter);
     in.convergence = get_number(j, "convergence", in.convergence);
     in.printLevel = get_int(j, "printLevel", in.printLevel);
+    in.basis = get_string(j, "basis", in.basis);
+    in.angle = get_number(j, "angle", in.angle);
+    in.method = get_string(j, "method", in.method);
+    in.basisDirectory = get_string(j, "basisDirectory", in.basisDirectory);
+    in.threads = get_int(j, "threads", in.threads);
+    in.memoryMB = get_number(j, "memoryMB", in.memoryMB);
+    in.scfMaxIter = get_int(j, "scfMaxIter", in.scfMaxIter);
+    in.energyConvergence = get_number(j, "energyConvergence", in.energyConvergence);
+    in.gradientConvergence = get_number(j, "gradientConvergence", in.gradientConvergence);
+    in.estimateOnly = get_bool(j, "estimateOnly", in.estimateOnly);
     return in;
 }
 
@@ -84,6 +201,25 @@ std::string output_to_json(const Output& out, int indent) {
     json j;
     j["input"] = input_json(out.input);
     j["error"] = out.error.empty() ? json(nullptr) : json(out.error);
+    if (!is_heh_input(out.input) && !canonical_molecule_name(out.input.molecule).empty()) {
+        // General molecules: {"input","error","molecule","basis","estimate","notes",
+        // "warnings","rhf","hf":null,"fci":null,"report"}.
+        if (out.molecular) {
+            const json m = molecular_json(*out.molecular);
+            for (auto it = m.begin(); it != m.end(); ++it) j[it.key()] = it.value();
+        } else {
+            j["molecule"] = nullptr;
+            j["basis"] = nullptr;
+            j["estimate"] = nullptr;
+            j["notes"] = json::array();
+            j["warnings"] = json::array();
+            j["rhf"] = nullptr;
+        }
+        j["hf"] = nullptr;
+        j["fci"] = nullptr;
+        j["report"] = out.report;
+        return j.dump(indent, ' ', false, json::error_handler_t::replace);
+    }
 
     if (out.hf) {
         const HFResult& h = *out.hf;
