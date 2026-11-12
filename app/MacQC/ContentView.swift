@@ -41,20 +41,6 @@ struct DetailView: View {
     @Bindable var model: AppModel
 
     var body: some View {
-        VStack(spacing: 0) {
-            if model.isGeneral && !model.isRunning, let refusal = model.refusal {
-                StatusBanner(kind: .refusal, text: refusal)
-                    .padding([.horizontal, .top], 14)
-            } else if model.isGeneral && !model.isRunning && model.isLongCalculation && !model.resultMatchesInputs,
-                      let warning = model.estimate?.warnings?.first {
-                StatusBanner(kind: .warning, text: warning + " Run asks for confirmation; a running calculation can be cancelled.")
-                    .padding([.horizontal, .top], 14)
-            }
-            tabs
-        }
-    }
-
-    private var tabs: some View {
         TabView(selection: $model.selectedTab) {
             SummaryView(model: model)
                 .tabItem { Label("Summary", systemImage: "list.bullet.rectangle") }
@@ -82,7 +68,7 @@ struct DetailView: View {
 
 // MARK: - Shared small views
 
-/// Banner above the tabs: why the current settings cannot be calculated (red), or that the
+/// Banner in the detail area before a result exists: why the current settings cannot be calculated (red), or that the
 /// calculation will take long (orange).
 struct StatusBanner: View {
     enum Kind {
@@ -100,7 +86,6 @@ struct StatusBanner: View {
                     .font(.headline)
                 Text(text)
                     .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } icon: {
@@ -154,6 +139,13 @@ struct NoResultView: View {
         VStack(spacing: 14) {
             if let message = model.errorMessage {
                 ErrorBanner(message: message)
+                    .frame(maxWidth: 560)
+            }
+            if model.isGeneral, let refusal = model.refusal {
+                StatusBanner(kind: .refusal, text: refusal)
+                    .frame(maxWidth: 560)
+            } else if model.isGeneral && model.isLongCalculation, let warning = model.estimate?.warnings?.first {
+                StatusBanner(kind: .warning, text: warning + " Run asks for confirmation; a running calculation can be cancelled.")
                     .frame(maxWidth: 560)
             }
             ContentUnavailableView(

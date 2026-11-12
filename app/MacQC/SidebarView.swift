@@ -218,6 +218,17 @@ struct SidebarView: View {
                         .foregroundStyle(.red)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .lineLimit(4)
+                } else if model.isGeneral && !model.isRunning, model.refusal != nil {
+                    Label("Not possible with these settings (see Size of the calculation).", systemImage: "xmark.octagon.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else if model.isGeneral && !model.isRunning && model.isLongCalculation,
+                          let e = model.estimate?.estimate {
+                    Label("Long calculation: \(Fmt.duration(e.totalSeconds)).", systemImage: "clock.badge.exclamationmark")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             .padding(12)

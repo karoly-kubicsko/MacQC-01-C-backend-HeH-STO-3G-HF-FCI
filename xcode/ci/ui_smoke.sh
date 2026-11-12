@@ -288,9 +288,9 @@ dump_tab "16-h2-curve-after-scan" ""
 
 echo "== H2O, Full CI (must be refused) and a long calculation (warning)"
 relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -psilabMethod FCI
-dump_tab "17-h2o-fci-refused" ""
+view_tab "17-h2o-fci-refused" "Summary"
 relaunch -appearanceChoice dark -psilabMolecule H2O -psilabBasis aug-cc-pCV5Z -psilabMethod RHF
-dump_tab "18-h2o-cv5z-warning-dark" ""
+view_tab "18-h2o-cv5z-warning-dark" "Summary"
 
 pkill -x "ΨLab" || true
 

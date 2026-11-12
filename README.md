@@ -34,8 +34,8 @@ Silicon and Intel Macs. The same calculations run in the terminal on Linux and m
   - *Size of the calculation*, updated as you type: basis functions per atom, two-electron
     integrals (kept in memory or integral-direct), Full CI determinants and memory, estimated time.
     Notes (e.g. H takes aug-cc-pVXZ in the core-valence sets) in grey, warnings in orange, and a
-    red explanation when the calculation is not possible (then **Run** is disabled); the refusal or
-    the long-calculation warning is also shown in a banner above the tabs.
+    red explanation when the calculation is not possible (then **Run** is disabled); the run bar and,
+    before the first result, the detail area repeat the refusal or the long-calculation warning.
 
   For HeH⁺: R in Å and bohr, Slater exponents ζ(He) and ζ(H), STO-1G/2G/3G, the exact-erf option;
   *Reset to Szabo–Ostlund defaults* restores R = 1.4632 bohr, ζ = 2.0925 / 1.24, STO-3G. Below:
