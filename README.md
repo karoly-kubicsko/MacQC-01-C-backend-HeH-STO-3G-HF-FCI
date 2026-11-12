@@ -1,7 +1,6 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Version 2.0** — terminal version for Linux (`psilab`), bond length in Å and bohr, plain-text
-export, app icon. (Version 1.0: the macOS app with Hartree–Fock, Full CI and potential curves.)
+**Current version: 2.0** — see [Versions](#versions).
 
 ΨLab computes the HeH⁺ molecular ion in a minimal STO-nG basis (n = 1, 2, 3): a restricted
 Hartree–Fock calculation and then Full CI on top of it. It shows the energies, integrals and
@@ -28,6 +27,27 @@ on macOS 14 and later, on Apple Silicon and Intel Macs.
   *Edit ▸ Copy Summary as Text* (⇧⌘C) copies the short summary.
 - **Build from source**: see [`app/SETUP.md`](app/SETUP.md) (Xcode 26, or XcodeGen with
   `xcode/project.yml`).
+
+## Versions
+
+### 2.0
+- **Terminal version for Linux** (`psilab`, also runs on macOS): reads a plain-text input file
+  (`basis`, `R` in bohr or Å, `zeta_He`, `zeta_H`, `exact_erf`, `scan`, `scan_step`) and writes a
+  plain-text output file; installs as `psilab input.inp output.txt`.
+- **Bond length in Å and bohr**: the sidebar shows R (Å) and below it R (bohr), both editable;
+  the summary, the minima and the exported text give both units.
+- **Export Results as Text** (⇧⌘E): summary, full Hartree–Fock and Full CI report and the
+  potential-curve table; JSON export moved to ⌥⇧⌘E.
+- **App icon** and the new name **ΨLab** (formerly MacQC).
+- Potential curve: FCI blue circles, HF orange diamonds; the minima are listed in a readout box
+  that no longer overlaps the curves.
+
+### 1.0
+- Native macOS app (SwiftUI, Liquid Glass on macOS 26, runs on macOS 14+ on Apple Silicon and Intel).
+- HeH⁺ in an STO-1G/2G/3G basis: restricted Hartree–Fock (a C++ port of the Szabo & Ostlund
+  program, output identical to it) and Full CI with ⟨S²⟩ spin labels and singlet weights.
+- Tabs Summary, Hartree–Fock, Full CI and Potential curve (scan R = 0.8 … 5.0 bohr with minima).
+- Light, Dark and System appearance; Export Results as JSON; Copy Summary as Text.
 
 ## Terminal version (Linux)
 
