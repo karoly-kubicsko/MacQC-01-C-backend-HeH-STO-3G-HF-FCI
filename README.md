@@ -20,7 +20,7 @@ on macOS 14 and later, on Apple Silicon and Intel Macs.
   *Reset to Szabo–Ostlund defaults* restores R = 1.4632 bohr, ζ = 2.0925 / 1.24, STO-3G.
 - **Tabs**: *Summary* (HF and FCI energies, correlation energy, convergence), *Hartree–Fock*
   (integrals, S/H/F/C/P matrices, orbital energies, SCF iterations), *Full CI* (determinants, CI
-  vector, singlet weights, all states with ⟨S²⟩) and *Potential curve* (scan with selectable step).
+  vector, singlet weights, all states with ⟨S²⟩) and *Potential curve* (scan with a selectable step in Å).
 - **Menus**: *File ▸ Export Results as Text…* (⇧⌘E) saves a `.txt` file with the summary, the full
   calculation report (every SCF iteration, the Full CI section) and, after a scan, the potential-curve
   table; *File ▸ Export Results as JSON…* (⌥⇧⌘E) saves the same results as JSON;

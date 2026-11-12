@@ -41,7 +41,7 @@ on run argv
             end if
             if targetName is "__SCAN__" then
                 -- the Run scan button has no accessible name: click the first AXButton
-                -- that follows the "Step (bohr)" pop-up in the tree
+                -- that follows the "Step (Å)" pop-up in the tree
                 set els to entire contents of window 1
                 set seenStep to false
                 repeat with e in els
@@ -51,7 +51,7 @@ on run argv
                         try
                             set n to name of e
                         end try
-                        if r is "AXPopUpButton" and n is "Step (bohr)" then
+                        if r is "AXPopUpButton" and n is "Step (Å)" then
                             set seenStep to true
                         else if seenStep and r is "AXButton" then
                             click e
