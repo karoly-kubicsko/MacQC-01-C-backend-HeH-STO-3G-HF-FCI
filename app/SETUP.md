@@ -79,7 +79,7 @@ default) or `nonisolated`.
 
 - *Signing*: "Sign to Run Locally" or your personal team is enough for "My Mac".
 - *App Sandbox* (enabled by the template): under **File Access ▸ User Selected File** choose
-  **Read/Write** – without it, File ▸ Export Results as JSON… cannot save. No network or other
+  **Read/Write** – without it, the File ▸ Export Results… items cannot save. No network or other
   entitlements are needed.
 
 ## 5. Build and run
@@ -89,7 +89,7 @@ default) or `nonisolated`.
 3. Expected for the defaults (STO-3G, R = 1.4632 bohr, ζ = 2.0925 / 1.24):
    HF total −2.86066199 E_h (6 iterations), FCI total −2.88071185 E_h, correlation −0.02004986 E_h.
 
-Inside the app, ⌘R runs the calculation, File ▸ *Export Results as JSON…* (⇧⌘E) saves the result
+Inside the app, ⌘R runs the calculation, File ▸ *Export Results as Text…* (⇧⌘E) and *as JSON…* (⌥⇧⌘E) save the result
 and Edit ▸ *Copy Summary as Text* (⇧⌘C) copies a plain-text summary.
 
 ## Liquid Glass
