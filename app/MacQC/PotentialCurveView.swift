@@ -98,7 +98,7 @@ struct PotentialCurveView: View {
             Chart {
                 ForEach(model.curveSamples) { sample in
                     LineMark(
-                        x: .value("R (bohr)", sample.R),
+                        x: .value("R (Å)", sample.R * Units.bohrToAngstrom),
                         y: .value("Total energy (E_h)", sample.energy),
                         series: .value("Method", sample.method)
                     )
@@ -108,18 +108,20 @@ struct PotentialCurveView: View {
 
                 ForEach(model.curveMinima) { minimum in
                     PointMark(
-                        x: .value("R (bohr)", minimum.R),
+                        x: .value("R (Å)", minimum.R * Units.bohrToAngstrom),
                         y: .value("Total energy (E_h)", minimum.energy)
                     )
                     .foregroundStyle(by: .value("Method", minimum.method))
-                    .symbol(symbol(for: minimum.method))
+                    .symbol(by: .value("Method", minimum.method))
                     .symbolSize(110)
                 }
             }
             .chartForegroundStyleScale(["HF": Color.orange, "FCI": Color.blue])
+            // Same shapes as the minimum markers, so the legend matches the plot.
+            .chartSymbolScale(["HF": BasicChartSymbolShape.diamond, "FCI": BasicChartSymbolShape.circle])
             .chartXScale(domain: xDomain)
             .chartYScale(domain: yDomain)
-            .chartXAxisLabel("R (bohr)")
+            .chartXAxisLabel("R (Å)")
             .chartYAxisLabel("Total energy (E_h)")
             .chartLegend(position: .top, alignment: .trailing)
             .chartOverlay { proxy in
@@ -143,10 +145,6 @@ struct PotentialCurveView: View {
 
     // MARK: Minima markers and readout
 
-    private func symbol(for method: String) -> BasicChartSymbolShape {
-        method == "HF" ? .diamond : .circle
-    }
-
     private func color(for method: String) -> Color {
         method == "HF" ? .orange : .blue
     }
@@ -155,7 +153,7 @@ struct PotentialCurveView: View {
     /// minimum lies in the right half of the scan.
     private var readoutAlignment: Alignment {
         let middle = (xDomain.lowerBound + xDomain.upperBound) / 2
-        let anyOnRight = model.curveMinima.contains { $0.R > middle }
+        let anyOnRight = model.curveMinima.contains { $0.R * Units.bohrToAngstrom > middle }
         return anyOnRight ? .bottomLeading : .bottomTrailing
     }
 
@@ -182,8 +180,10 @@ struct PotentialCurveView: View {
 
     /// Swift Charts would otherwise include 0 on the energy axis and squash the curves.
     private var xDomain: ClosedRange<Double> {
-        let values = model.curvePoints.map { $0.R }
-        guard let lo = values.min(), let hi = values.max(), lo < hi else { return 0.8...5.0 }
+        let values = model.curvePoints.map { $0.R * Units.bohrToAngstrom }   // axis in Å
+        guard let lo = values.min(), let hi = values.max(), lo < hi else {
+            return (AppModel.scanStart * Units.bohrToAngstrom)...(AppModel.scanEnd * Units.bohrToAngstrom)
+        }
         return lo...hi
     }
 
