@@ -305,10 +305,11 @@ final class AppModel {
         return values
     }
 
-    /// Estimated time of a scan (general molecules), from the single-point estimate.
+    /// Estimated time of a scan (general molecules), from the single-point estimate plus
+    /// about 0.2 s per point for setting up each calculation (basis files, start-up).
     var scanSeconds: Double {
         guard isGeneral, let e = estimate?.estimate else { return 0 }
-        return Double(scanGrid().count) * e.totalSeconds
+        return Double(scanGrid().count) * (e.totalSeconds + 0.2)
     }
 
     /// Run scan button: confirmation first when the scan would take more than 30 s.

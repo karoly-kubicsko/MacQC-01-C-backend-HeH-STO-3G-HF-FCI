@@ -121,7 +121,18 @@ with_timeout() {
     return $rc
 }
 
-shot() { screencapture -x "$OUT/$1.png" || echo "screencapture failed for $1"; }
+# Screenshot, and print it at once into the log as a downscaled base64 JPEG, so the images can
+# be read through the GitHub API without downloading the artifact (and survive a timeout).
+# Decode: the line between "IMG_BEGIN name" and "IMG_END name".
+shot() {
+    screencapture -x "$OUT/$1.png" || { echo "screencapture failed for $1"; return; }
+    if sips -s format jpeg -s formatOptions 60 -Z 1100 "$OUT/$1.png" --out "$OUT/$1.jpg" > /dev/null 2>&1; then
+        echo "IMG_BEGIN $1"
+        base64 -i "$OUT/$1.jpg" | tr -d '\n'
+        echo
+        echo "IMG_END $1"
+    fi
+}
 
 dump_tab() {   # $1 = file prefix, $2 = element to click ("" = none)
     echo "::group::UI text: $1"
@@ -262,18 +273,6 @@ relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -p
 dump_tab "17-h2o-fci-refused" ""
 relaunch -appearanceChoice dark -psilabMolecule H2O -psilabBasis aug-cc-pCV5Z -psilabMethod RHF
 dump_tab "18-h2o-cv5z-warning-dark" ""
-
-# Print downscaled screenshots into the log as base64 JPEG so they can be read through the
-# GitHub API without downloading the artifact. Decode: lines between IMG_BEGIN/IMG_END.
-echo "== screenshots (base64 JPEG)"
-for f in "$OUT"/*.png; do
-    name=$(basename "$f" .png)
-    sips -s format jpeg -s formatOptions 60 -Z 1100 "$f" --out "$OUT/$name.jpg" > /dev/null 2>&1 || continue
-    echo "IMG_BEGIN $name"
-    base64 -i "$OUT/$name.jpg" | tr -d '\n'
-    echo
-    echo "IMG_END $name"
-done
 
 pkill -x "ΨLab" || true
 exit 0
