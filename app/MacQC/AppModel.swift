@@ -50,11 +50,17 @@ final class AppModel {
     static let defaultZeta2 = 1.24
     static let defaultGaussians = 3
 
-    var R: Double = AppModel.defaultR
+    var R: Double = AppModel.defaultR             // bohr (the backend's unit)
     var zeta1: Double = AppModel.defaultZeta1   // He
     var zeta2: Double = AppModel.defaultZeta2   // H
     var nGaussians: Int = AppModel.defaultGaussians
     var exactErf: Bool = false
+
+    /// The bond length in angstrom; reads and writes `R` (bohr).
+    var rAngstrom: Double {
+        get { R * Units.bohrToAngstrom }
+        set { R = newValue / Units.bohrToAngstrom }
+    }
 
     // MARK: Results
 
@@ -247,8 +253,8 @@ final class AppModel {
         guard let out = result, let hf = out.hf else { return nil }
         var lines: [String] = []
         lines.append("ΨLab – HeH+ (STO-\(out.input.nGaussians)G)")
-        lines.append(String(format: "R = %.4f bohr, zeta(He) = %.4f, zeta(H) = %.4f, %@ erf",
-                            out.input.R, out.input.zeta1, out.input.zeta2,
+        lines.append(String(format: "R = %@, zeta(He) = %.4f, zeta(H) = %.4f, %@ erf",
+                            Fmt.lengthBoth(out.input.R), out.input.zeta1, out.input.zeta2,
                             out.input.exactErf ? "exact" : "Abramowitz-Stegun"))
         lines.append("")
         lines.append("Hartree-Fock")
@@ -311,14 +317,16 @@ final class AppModel {
             lines.append(description)
         }
         lines.append("")
-        lines.append("    R (bohr)      E_HF (E_h)     E_FCI (E_h)")
+        lines.append("    R (bohr)       R (Å)      E_HF (E_h)     E_FCI (E_h)")
         for p in curvePoints {
-            lines.append(String(format: "%12.4f  %14.8f  %14.8f", p.R, p.hf, p.fci))
+            lines.append(String(format: "%12.4f  %12.4f  %14.8f  %14.8f",
+                                p.R, p.R * Units.bohrToAngstrom, p.hf, p.fci))
         }
         lines.append("")
         for m in curveMinima {
-            lines.append(String(format: "%@ minimum (%@): R = %.4f bohr, E = %.8f E_h",
-                                m.method, m.refined ? "parabolic fit" : "grid point", m.R, m.energy))
+            lines.append(String(format: "%@ minimum (%@): R = %@, E = %.8f E_h",
+                                m.method, m.refined ? "parabolic fit" : "grid point",
+                                Fmt.lengthBoth(m.R), m.energy))
         }
         return lines.joined(separator: "\n")
     }

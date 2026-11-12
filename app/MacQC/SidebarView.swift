@@ -23,8 +23,15 @@ struct SidebarView: View {
             }
 
             Section("Geometry") {
+                LabeledContent("R (Å)") {
+                    TextField("R angstrom", value: $model.rAngstrom, format: Self.numberFormat)
+                        .labelsHidden()
+                        .multilineTextAlignment(.trailing)
+                        .monospacedDigit()
+                        .frame(width: 96)
+                }
                 LabeledContent("R (bohr)") {
-                    TextField("R", value: $model.R, format: Self.numberFormat)
+                    TextField("R bohr", value: $model.R, format: Self.numberFormat)
                         .labelsHidden()
                         .multilineTextAlignment(.trailing)
                         .monospacedDigit()

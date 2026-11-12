@@ -18,7 +18,8 @@ struct SummaryView: View {
                         ErrorBanner(message: message)
                     }
 
-                    Text(String(format: "HeH⁺ · STO-%ldG · R = %.4f bohr", out.input.nGaussians, out.input.R))
+                    Text(String(format: "HeH⁺ · STO-%ldG · R = %@", out.input.nGaussians,
+                                Fmt.lengthBoth(out.input.R)))
                         .font(.title2.weight(.semibold))
 
                     GlassGroup(spacing: 14) {

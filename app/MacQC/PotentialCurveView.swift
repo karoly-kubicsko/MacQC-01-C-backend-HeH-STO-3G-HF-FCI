@@ -166,8 +166,8 @@ struct PotentialCurveView: View {
                     Image(systemName: minimum.method == "HF" ? "diamond.fill" : "circle.fill")
                         .font(.caption2)
                         .foregroundStyle(color(for: minimum.method))
-                    Text(String(format: "%@ min: R = %.3f bohr, E = %.6f E_h",
-                                minimum.method, minimum.R, minimum.energy))
+                    Text(String(format: "%@ min: R = %@, E = %.6f E_h",
+                                minimum.method, Fmt.lengthBoth(minimum.R, decimals: 3), minimum.energy))
                         .font(.caption.monospacedDigit())
                 }
             }
@@ -202,7 +202,7 @@ struct PotentialCurveView: View {
             ForEach(model.curveMinima) { minimum in
                 InfoRow(
                     "\(minimum.method) (\(minimum.refined ? "parabolic fit" : "grid point"))",
-                    String(format: "R = %.4f bohr,  E = %@ E_h", minimum.R, Fmt.energy(minimum.energy))
+                    String(format: "R = %@,  E = %@ E_h", Fmt.lengthBoth(minimum.R), Fmt.energy(minimum.energy))
                 )
             }
             Text("The minimum is the lowest scanned point, refined by a parabola through it and its two neighbours when it is not at the edge of the scan range.")

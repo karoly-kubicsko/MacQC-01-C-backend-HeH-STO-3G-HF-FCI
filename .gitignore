@@ -13,3 +13,6 @@ DerivedData/
 xcode/PsiLab.xcodeproj/
 xcode/PsiLab.entitlements
 build.log
+
+# Output of the terminal version run on the examples
+examples/*.out

@@ -1,0 +1,12 @@
+# ΨLab input file: HeH+ with Hartree-Fock and Full CI
+# One 'key = value' per line; '#' starts a comment.
+
+basis     = STO-3G           # STO-1G, STO-2G or STO-3G
+R         = 1.4632 bohr      # bond length; unit bohr or angstrom (e.g. 0.7743 angstrom)
+zeta_He   = 2.0925           # Slater exponent of He
+zeta_H    = 1.24             # Slater exponent of H
+exact_erf = no               # no: the original program's erf; yes: the exact erf
+
+# Potential curve, R = 0.8 ... 5.0 bohr (uses basis, zetas and exact_erf from above)
+scan      = yes
+scan_step = 0.1              # bohr

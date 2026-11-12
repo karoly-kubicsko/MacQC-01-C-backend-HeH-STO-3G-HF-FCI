@@ -13,7 +13,7 @@ on macOS 14 and later, on Apple Silicon and Intel Macs.
 - **Download**: *Actions* ▸ *app* ▸ the newest run on `main` ▸ *Artifacts* ▸ **ΨLab-app**. Unzip
   `ΨLab-app.zip`, then the `ΨLab.app.zip` inside it. The app is not notarized: right-click
   `ΨLab.app` ▸ *Open* once, or run `xattr -dr com.apple.quarantine` on it.
-- **Sidebar**: bond length R (bohr), Slater exponents ζ(He) and ζ(H), basis STO-1G/2G/3G, the
+- **Sidebar**: bond length R in Å and, below it, in bohr (both editable), Slater exponents ζ(He) and ζ(H), basis STO-1G/2G/3G, the
   exact-erf option and the appearance (System / Light / Dark). **Run** (⌘R) calculates;
   *Reset to Szabo–Ostlund defaults* restores R = 1.4632 bohr, ζ = 2.0925 / 1.24, STO-3G.
 - **Tabs**: *Summary* (HF and FCI energies, correlation energy, convergence), *Hartree–Fock*
@@ -25,6 +25,47 @@ on macOS 14 and later, on Apple Silicon and Intel Macs.
   *Edit ▸ Copy Summary as Text* (⇧⌘C) copies the short summary.
 - **Build from source**: see [`app/SETUP.md`](app/SETUP.md) (Xcode 26, or XcodeGen with
   `xcode/project.yml`).
+
+## Terminal version (Linux)
+
+The same calculation runs without the graphical interface as the terminal program `psilab`, on
+Linux (and macOS). It reads a plain-text input file and writes a plain-text output file.
+
+Build and install once (needs a C++17 compiler and CMake):
+
+```bash
+cmake -S . -B build && cmake --build build
+sudo cmake --install build                       # installs /usr/local/bin/psilab
+```
+
+Without administrator rights, install into your home folder instead with
+`cmake --install build --prefix ~/.local` (then `~/.local/bin` must be on your `PATH`). After that
+`psilab` runs from any folder:
+
+```bash
+psilab input.inp output.txt       # read input.inp, write the results to output.txt
+psilab input.inp                  # output name defaults to input.out
+psilab --example > input.inp      # start from a commented example input
+```
+
+The input file has one `key = value` per line; `#` starts a comment; keys are case-insensitive:
+
+```text
+basis     = STO-3G           # STO-1G, STO-2G or STO-3G
+R         = 1.4632 bohr      # bond length; unit bohr (default) or angstrom, e.g. 0.7743 angstrom
+zeta_He   = 2.0925           # Slater exponent of He
+zeta_H    = 1.24             # Slater exponent of H
+exact_erf = no               # no: the original program's erf; yes: the exact erf
+scan      = yes              # potential curve, R = 0.8 ... 5.0 bohr
+scan_step = 0.1              # bohr
+```
+
+Missing keys take the values shown (the Szabo–Ostlund case, without scan unless `scan = yes`).
+The output file contains the same text as the app's *File ▸ Export Results as Text*: the summary,
+the full Hartree–Fock and Full CI report and, with `scan = yes`, the potential-curve table (R in
+bohr and Å) with the HF and FCI minima. Mistakes in the input are reported with their line number;
+the exit status is 0 on success, 1 if the calculation failed (e.g. no SCF convergence) and 2 for
+input or file errors.
 
 ## The C++ backend
 
@@ -60,7 +101,9 @@ Reference values (R = 1.4632 bohr, STO-3G, ζ = 2.0925 / 1.24): E_HF,total = −
 ```
 backend/include/macqc/   public headers (macqc_api.h is the C API)
 backend/src/             linalg, integrals, scf, fci, report, calculation, api
-backend/cli/main.cpp     command-line tool
+backend/cli/main.cpp     developer command-line tool `macqc` (flags / JSON)
+backend/cli/psilab*      terminal version `psilab` (text input file -> text output file)
+examples/heh.inp         example input file for `psilab`
 backend/tests/           test program (CTest), expected reports in tests/data/
 reference/               the verified Python reference
 third_party/nlohmann/    json.hpp (MIT)
