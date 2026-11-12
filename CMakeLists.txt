@@ -35,6 +35,8 @@ target_link_libraries(psilab_text PUBLIC macqc)
 
 add_executable(psilab backend/cli/psilab.cpp)
 target_link_libraries(psilab PRIVATE psilab_text)
+# "cmake --install build" puts psilab into <prefix>/bin (default /usr/local/bin), so it runs as "psilab".
+install(TARGETS psilab RUNTIME DESTINATION bin)
 
 enable_testing()
 add_executable(macqc_tests backend/tests/test_macqc.cpp)

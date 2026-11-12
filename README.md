@@ -31,11 +31,21 @@ on macOS 14 and later, on Apple Silicon and Intel Macs.
 The same calculation runs without the graphical interface as the terminal program `psilab`, on
 Linux (and macOS). It reads a plain-text input file and writes a plain-text output file.
 
+Build and install once (needs a C++17 compiler and CMake):
+
 ```bash
-cmake -S . -B build && cmake --build build      # needs a C++17 compiler and CMake
-./build/psilab examples/heh.inp                  # writes examples/heh.out
-./build/psilab my-run.inp results.txt            # or choose the output file
-./build/psilab --example > my-run.inp            # start from a commented example
+cmake -S . -B build && cmake --build build
+sudo cmake --install build                       # installs /usr/local/bin/psilab
+```
+
+Without administrator rights, install into your home folder instead with
+`cmake --install build --prefix ~/.local` (then `~/.local/bin` must be on your `PATH`). After that
+`psilab` runs from any folder:
+
+```bash
+psilab input.inp output.txt       # read input.inp, write the results to output.txt
+psilab input.inp                  # output name defaults to input.out
+psilab --example > input.inp      # start from a commented example input
 ```
 
 The input file has one `key = value` per line; `#` starts a comment; keys are case-insensitive:
