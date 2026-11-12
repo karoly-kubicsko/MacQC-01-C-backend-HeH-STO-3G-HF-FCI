@@ -71,11 +71,12 @@ final class AppModel {
 
     // MARK: Potential curve
 
-    static let scanStart = 0.8
-    static let scanEnd = 5.0
-    static let scanStepChoices: [Double] = [0.05, 0.1, 0.15, 0.2, 0.3]
+    static let scanStart = 0.8   // bohr
+    static let scanEnd = 5.0     // bohr
+    /// Step choices in angstrom (converted to bohr for the scan grid).
+    static let scanStepChoices: [Double] = [0.025, 0.05, 0.075, 0.1, 0.15]
 
-    var scanStep: Double = 0.1
+    var scanStep: Double = 0.05   // angstrom
     var isScanning = false
     var scanProgress: Double = 0
     var scanMessage: String?
@@ -129,7 +130,7 @@ final class AppModel {
 
     /// Grid of R values from 0.8 to 5.0 bohr (inclusive) with the selected step.
     func scanGrid() -> [Double] {
-        let step = scanStep
+        let step = scanStep / Units.bohrToAngstrom   // grid is in bohr
         guard step > 0 else { return [] }
         var values: [Double] = []
         let count = Int(((AppModel.scanEnd - AppModel.scanStart) / step + 1.0e-9).rounded(.down))

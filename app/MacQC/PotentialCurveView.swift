@@ -26,7 +26,7 @@ struct PotentialCurveView: View {
                         ContentUnavailableView(
                             "No potential curve yet",
                             systemImage: "chart.xyaxis.line",
-                            description: Text("Press Run scan to compute HF and FCI total energies for R = 0.8 … 5.0 bohr with the basis and exponents from the sidebar.")
+                            description: Text("Press Run scan to compute HF and FCI total energies for R = 0.42 … 2.65 Å (0.8 … 5.0 bohr) with the basis and exponents from the sidebar.")
                         )
                         .frame(maxWidth: .infinity, minHeight: 260)
                     }
@@ -44,9 +44,9 @@ struct PotentialCurveView: View {
     private var controls: some View {
         GlassGroup(spacing: 12) {
             HStack(spacing: 14) {
-                Picker("Step (bohr)", selection: $model.scanStep) {
+                Picker("Step (Å)", selection: $model.scanStep) {
                     ForEach(AppModel.scanStepChoices, id: \.self) { step in
-                        Text(String(format: "%.2f", step)).tag(step)
+                        Text(String(format: "%.3f", step)).tag(step)
                     }
                 }
                 .pickerStyle(.menu)
