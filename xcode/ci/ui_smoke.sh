@@ -244,6 +244,24 @@ sleep 8
 shot "dark-05-curve-after-scan"
 
 # --- ΨLab 3.0: H2, LiH, H2O (launch arguments select molecule, basis set and method) ---------
+# Selects a tab through View > <item> (unambiguous: the sidebar also has a "Full CI" segment),
+# then dumps the visible text and takes a screenshot.
+cat > "$OUT/view-menu.applescript" <<'APPLESCRIPT'
+on run argv
+    tell application "System Events"
+        tell process "ΨLab"
+            set frontmost to true
+            click menu item (item 1 of argv) of menu 1 of menu bar item "View" of menu bar 1
+        end tell
+    end tell
+    return "VIEW MENU " & (item 1 of argv)
+end run
+APPLESCRIPT
+view_tab() {   # $1 = file prefix, $2 = View menu item
+    with_timeout 20 osascript "$OUT/view-menu.applescript" "$2" || echo "could not select $2"
+    sleep 2
+    dump_tab "$1" ""
+}
 relaunch() {   # $@ = launch arguments
     pkill -x "ΨLab" || true
     sleep 3
@@ -252,18 +270,18 @@ relaunch() {   # $@ = launch arguments
 }
 echo "== H2O, RHF/aug-cc-pVDZ"
 relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -psilabMethod RHF
-dump_tab "10-h2o-rhf-summary" "Summary"
-dump_tab "11-h2o-rhf-hartree-fock" "Hartree–Fock"
-dump_tab "12-h2o-rhf-report" "Report"
+view_tab "10-h2o-rhf-summary" "Summary"
+view_tab "11-h2o-rhf-hartree-fock" "Hartree–Fock"
+view_tab "12-h2o-rhf-report" "Report"
 
 echo "== LiH, Full CI/aug-cc-pVDZ"
 relaunch -appearanceChoice light -psilabMolecule LiH -psilabBasis aug-cc-pVDZ -psilabMethod FCI
-dump_tab "13-lih-fci-summary" "Summary"
-dump_tab "14-lih-fci-full-ci" "Full CI"
+view_tab "13-lih-fci-summary" "Summary"
+view_tab "14-lih-fci-full-ci" "Full CI"
 
 echo "== H2, Full CI/aug-cc-pVDZ potential curve"
 relaunch -appearanceChoice light -psilabMolecule H2 -psilabBasis aug-cc-pVDZ -psilabMethod FCI
-dump_tab "15-h2-curve" "Potential curve"
+view_tab "15-h2-curve" "Potential Curve"
 with_timeout 90 osascript "$OUT/tab.applescript" "__SCAN__" | grep -E "CLICKED|NOT FOUND"
 sleep 25
 dump_tab "16-h2-curve-after-scan" ""

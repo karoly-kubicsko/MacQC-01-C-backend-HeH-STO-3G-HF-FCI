@@ -105,6 +105,13 @@ final class AppModel {
 
     var isLongCalculation: Bool { estimate?.estimate?.longCalculation ?? false }
 
+    /// The displayed result was computed with the current molecule, basis set, method and geometry.
+    var resultMatchesInputs: Bool {
+        guard let input = result?.input, isGeneral, input.isGeneral else { return false }
+        return input.molecule == molecule.rawValue && input.basis == basis && input.method == method.rawValue
+            && abs(input.R - bondLength) < 1e-9 && (molecule != .h2o || abs(input.angle - waterAngle) < 1e-9)
+    }
+
     // MARK: Results and the running job
 
     var selectedTab: DetailTab = .summary

@@ -33,6 +33,21 @@ struct MacQCApp: App {
                 .disabled(!model.canExportOrCopy)
             }
 
+            // View > Summary … Report (⌘1 … ⌘5)
+            CommandGroup(before: .toolbar) {
+                Button("Summary") { model.selectedTab = .summary }
+                    .keyboardShortcut("1", modifiers: [.command])
+                Button("Hartree–Fock") { model.selectedTab = .hartreeFock }
+                    .keyboardShortcut("2", modifiers: [.command])
+                Button("Full CI") { model.selectedTab = .fullCI }
+                    .keyboardShortcut("3", modifiers: [.command])
+                Button("Potential Curve") { model.selectedTab = .potentialCurve }
+                    .keyboardShortcut("4", modifiers: [.command])
+                Button("Report") { model.selectedTab = .report }
+                    .keyboardShortcut("5", modifiers: [.command])
+                Divider()
+            }
+
             // Edit > Copy Summary as Text
             CommandGroup(after: .pasteboard) {
                 Button("Copy Summary as Text") {
