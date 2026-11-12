@@ -8,6 +8,7 @@
 
 import SwiftUI
 import Charts
+import Foundation
 
 // MARK: - Summary
 
@@ -387,27 +388,33 @@ struct GeneralFullCIView: View {
         .dataPanel()
     }
 
+    /// Points and line of log10(occupation) on a linear axis (a logarithmic axis cannot hold the
+    /// zero baseline of bars), strongly occupied orbitals in blue, weakly occupied in orange.
     private func occupationChart(_ f: MacQCFullCI) -> some View {
-        let shown = Array(f.naturalOccupations.prefix(20).enumerated())
+        let values = Array(f.naturalOccupations.prefix(20))
+        let points: [(index: Int, log: Double, strong: Bool)] = values.enumerated().map { item in
+            (index: item.offset + 1, log: log10(max(item.element, 1.0e-12)), strong: item.element > 0.5)
+        }
+        let lowest = (points.map { $0.log }.min() ?? -6).rounded(.down)
         return VStack(alignment: .leading, spacing: 8) {
             Chart {
-                ForEach(shown, id: \.offset) { index, n in
-                    BarMark(
-                        x: .value("Natural orbital", index + 1),
-                        y: .value("Occupation", max(n, 1.0e-8))
-                    )
-                    .foregroundStyle(index < f.alphaElectrons ? Color.blue : Color.orange)
+                ForEach(points, id: \.index) { p in
+                    LineMark(x: .value("Natural orbital", p.index), y: .value("log10 occupation", p.log))
+                        .foregroundStyle(Color.secondary.opacity(0.5))
+                    PointMark(x: .value("Natural orbital", p.index), y: .value("log10 occupation", p.log))
+                        .foregroundStyle(p.strong ? Color.blue : Color.orange)
+                        .symbolSize(60)
                 }
             }
-            .chartYScale(type: .log)
+            .chartYScale(domain: min(lowest, -1.0)...0.5)
+            .chartXScale(domain: 0...(points.count + 1))
             .chartXAxisLabel("Natural orbital")
-            .chartYAxisLabel("Occupation (log scale)")
+            .chartYAxisLabel("log₁₀ occupation")
             .frame(height: 220)
-            Text(shown.map { String(format: "%.6f", $0.element) }.joined(separator: "  "))
+            Text(values.map { String(format: "%.6f", $0) }.joined(separator: "  "))
                 .font(.caption.monospacedDigit())
                 .textSelection(.enabled)
-            Text(String(format: "Largest %ld of %ld; they sum to %ld electrons. Blue: strongly occupied, orange: weakly occupied (correlation).",
-                        shown.count, f.naturalOccupations.count, f.alphaElectrons + f.betaElectrons))
+            Text("Largest \(values.count) of \(f.naturalOccupations.count); they sum to \(f.alphaElectrons + f.betaElectrons) electrons. Blue: occupation above 0.5, orange: weakly occupied (correlation).")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

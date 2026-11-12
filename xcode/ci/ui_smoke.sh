@@ -293,4 +293,28 @@ relaunch -appearanceChoice dark -psilabMolecule H2O -psilabBasis aug-cc-pCV5Z -p
 dump_tab "18-h2o-cv5z-warning-dark" ""
 
 pkill -x "ΨLab" || true
+
+# Crash reports of this run (none expected): print the crashed thread's backtrace.
+echo "::group::crash reports"
+find "$HOME/Library/Logs/DiagnosticReports" /Library/Logs/DiagnosticReports -name '*Lab*' -mmin -40 2>/dev/null | while read -r report; do
+    echo "== $report"
+    python3 - "$report" <<'PY' || head -c 6000 "$report"
+import json, sys
+text = open(sys.argv[1]).read()
+header, _, body = text.partition("\n")
+try:
+    d = json.loads(body)
+except Exception:
+    print(text[:6000]); sys.exit(0)
+print("exception:", d.get("exception"), "termination:", d.get("termination", {}).get("indicator"))
+print("asi:", d.get("asi"))
+images = d.get("usedImages", [])
+for t in d.get("threads", []):
+    if t.get("triggered"):
+        for f in t.get("frames", [])[:40]:
+            img = images[f.get("imageIndex", 0)].get("name", "?") if images else "?"
+            print("  ", img, f.get("symbol", "?"), "+", f.get("symbolLocation", ""))
+PY
+done
+echo "::endgroup::"
 exit 0

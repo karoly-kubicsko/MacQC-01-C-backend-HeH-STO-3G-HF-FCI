@@ -110,7 +110,6 @@ struct StatusBanner: View {
         .padding(12)
         .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
         .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(color.opacity(0.35), lineWidth: 1))
-        .accessibilityElement(children: .combine)
     }
 }
 

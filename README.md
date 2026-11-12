@@ -34,7 +34,8 @@ Silicon and Intel Macs. The same calculations run in the terminal on Linux and m
   - *Size of the calculation*, updated as you type: basis functions per atom, two-electron
     integrals (kept in memory or integral-direct), Full CI determinants and memory, estimated time.
     Notes (e.g. H takes aug-cc-pVXZ in the core-valence sets) in grey, warnings in orange, and a
-    red explanation when the calculation is not possible (then **Run** is disabled).
+    red explanation when the calculation is not possible (then **Run** is disabled); the refusal or
+    the long-calculation warning is also shown in a banner above the tabs.
 
   For HeH⁺: R in Å and bohr, Slater exponents ζ(He) and ζ(H), STO-1G/2G/3G, the exact-erf option;
   *Reset to Szabo–Ostlund defaults* restores R = 1.4632 bohr, ζ = 2.0925 / 1.24, STO-3G. Below:
@@ -49,7 +50,7 @@ Silicon and Intel Macs. The same calculations run in the terminal on Linux and m
   natural-orbital occupations, Davidson iterations; for HeH⁺ the CI vector, singlet weights and all
   states), *Potential curve* (bond-length scan with a selectable step in Å — H₂O as a symmetric
   stretch — with the RHF and Full CI minima; long scans ask for confirmation and can be stopped)
-  and *Report* (the complete text report).
+  and *Report* (the complete text report); *View ▸ Summary … Report* (⌘1 … ⌘5) switches tabs.
 - **Menus**: *File ▸ Export Results as Text…* (⇧⌘E) saves a `.txt` file with the summary, the full
   calculation report (every SCF iteration, the Full CI section) and, after a scan, the potential-curve
   table; *File ▸ Export Results as JSON…* (⌥⇧⌘E) saves the same results as JSON;
