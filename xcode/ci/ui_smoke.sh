@@ -186,6 +186,32 @@ echo "::group::clipboard after Copy Summary as Text"
 pbpaste | tee "$OUT/clipboard-summary.txt"
 echo "::endgroup::"
 
+echo "== File > Export Results as Text (accept the save panel with Return)"
+cat > "$OUT/export-text.applescript" <<'APPLESCRIPT'
+tell application "System Events"
+    tell process "ΨLab"
+        set frontmost to true
+        click menu item "Export Results as Text…" of menu 1 of menu bar item "File" of menu bar 1
+        delay 3
+        key code 36
+        delay 3
+    end tell
+end tell
+APPLESCRIPT
+with_timeout 40 osascript "$OUT/export-text.applescript" || echo "could not drive the export"
+EXPORTED=$(find "$HOME" -name 'PsiLab-HeH+-STO3G-R1.4632.txt' -mmin -10 2>/dev/null | head -n 1)
+echo "::group::exported text file"
+if [ -n "$EXPORTED" ]; then
+    echo "file: $EXPORTED ($(wc -l < "$EXPORTED") lines)"
+    cp "$EXPORTED" "$OUT/exported-results.txt"
+    head -n 40 "$EXPORTED"
+    echo "[...]"
+    tail -n 60 "$EXPORTED"
+else
+    echo "exported file NOT found"
+fi
+echo "::endgroup::"
+
 # --- dark mode pass: relaunch with the in-app appearance forced to dark ---------------
 echo "== dark mode pass"
 pkill -x "ΨLab" || true

@@ -18,12 +18,18 @@ struct MacQCApp: App {
         }
         .defaultSize(width: 1180, height: 760)
         .commands {
-            // File > Export Results as JSON… (replaces the unused "New Window" item)
+            // File > Export Results as Text… / as JSON… (replace the unused "New Window" item)
             CommandGroup(replacing: .newItem) {
+                Button("Export Results as Text…") {
+                    model.exportText()
+                }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
+                .disabled(!model.canExportOrCopy)
+
                 Button("Export Results as JSON…") {
                     model.exportJSON()
                 }
-                .keyboardShortcut("e", modifiers: [.command, .shift])
+                .keyboardShortcut("e", modifiers: [.command, .shift, .option])
                 .disabled(!model.canExportOrCopy)
             }
 

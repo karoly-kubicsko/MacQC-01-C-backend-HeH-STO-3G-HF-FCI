@@ -19,7 +19,10 @@ on macOS 14 and later, on Apple Silicon and Intel Macs.
 - **Tabs**: *Summary* (HF and FCI energies, correlation energy, convergence), *Hartree–Fock*
   (integrals, S/H/F/C/P matrices, orbital energies, SCF iterations), *Full CI* (determinants, CI
   vector, singlet weights, all states with ⟨S²⟩) and *Potential curve* (scan with selectable step).
-- **Menus**: *File ▸ Export Results as JSON…* (⇧⌘E), *Edit ▸ Copy Summary as Text* (⇧⌘C).
+- **Menus**: *File ▸ Export Results as Text…* (⇧⌘E) saves a `.txt` file with the summary, the full
+  calculation report (every SCF iteration, the Full CI section) and, after a scan, the potential-curve
+  table; *File ▸ Export Results as JSON…* (⌥⇧⌘E) saves the same results as JSON;
+  *Edit ▸ Copy Summary as Text* (⇧⌘C) copies the short summary.
 - **Build from source**: see [`app/SETUP.md`](app/SETUP.md) (Xcode 26, or XcodeGen with
   `xcode/project.yml`).
 

@@ -286,6 +286,60 @@ final class AppModel {
         pasteboard.setString(text, forType: .string)
     }
 
+    /// Plain-text export: summary, the backend's full FORTRAN-style report (HF + Full CI) and,
+    /// if a scan was run, the potential-curve table with its minima.
+    func fullTextReport() -> String? {
+        guard let out = result, let summary = summaryText() else { return nil }
+        let rule = String(repeating: "=", count: 78)
+        var parts: [String] = [summary]
+        if !out.report.isEmpty {
+            parts.append(rule + "\nDETAILED REPORT (Hartree-Fock as in Szabo & Ostlund, Appendix B; then Full CI)\n"
+                         + rule + "\n" + out.report)
+        }
+        if let curve = curveTableText() {
+            parts.append(rule + "\n" + curve)
+        }
+        return parts.joined(separator: "\n\n") + "\n"
+    }
+
+    /// The potential-curve scan as a fixed-width table, or nil if no scan has been run.
+    func curveTableText() -> String? {
+        guard !curvePoints.isEmpty else { return nil }
+        var lines: [String] = []
+        lines.append("POTENTIAL CURVE")
+        if let description = curveInputDescription {
+            lines.append(description)
+        }
+        lines.append("")
+        lines.append("    R (bohr)      E_HF (E_h)     E_FCI (E_h)")
+        for p in curvePoints {
+            lines.append(String(format: "%12.4f  %14.8f  %14.8f", p.R, p.hf, p.fci))
+        }
+        lines.append("")
+        for m in curveMinima {
+            lines.append(String(format: "%@ minimum (%@): R = %.4f bohr, E = %.8f E_h",
+                                m.method, m.refined ? "parabolic fit" : "grid point", m.R, m.energy))
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    func exportText() {
+        guard let out = result, let text = fullTextReport() else { return }
+
+        let panel = NSSavePanel()
+        panel.title = "Export Results as Text"
+        panel.allowedContentTypes = [UTType.plainText]
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = String(format: "PsiLab-HeH+-STO%ldG-R%.4f.txt",
+                                            out.input.nGaussians, out.input.R)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try text.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            errorMessage = "Could not write the file: \(error.localizedDescription)"
+        }
+    }
+
     func exportJSON() {
         guard let out = result else { return }
 
