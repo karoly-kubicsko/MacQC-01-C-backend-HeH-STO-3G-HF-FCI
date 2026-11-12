@@ -34,4 +34,15 @@ nonisolated enum Fmt {
     static func bohr(_ x: Double) -> String {
         String(format: "%.4f bohr", x)
     }
+
+    /// Length given in bohr, shown as "0.7743 Å (1.4632 bohr)".
+    static func lengthBoth(_ bohr: Double, decimals: Int = 4) -> String {
+        let digits = Int32(decimals)  // "%.*f" takes a C int
+        return String(format: "%.*f Å (%.*f bohr)", digits, bohr * Units.bohrToAngstrom, digits, bohr)
+    }
+}
+
+nonisolated enum Units {
+    /// 1 bohr in angstrom (CODATA 2022).
+    static let bohrToAngstrom = 0.529177210544
 }
