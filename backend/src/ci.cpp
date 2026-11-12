@@ -9,6 +9,7 @@
 #include <stdexcept>
 
 #include "macqc/gto_integrals.h"
+#include "macqc/job.h"
 #include "macqc/linalg.h"
 #include "macqc/parallel.h"
 
@@ -295,6 +296,7 @@ private:
         std::vector<double> D, E;
         std::vector<std::size_t> coff;
         for (std::size_t ka0 = 0; ka0 < Nk;) {
+            check_cancelled();
             // Batch of K_a strings whose columns (K_b >= K_a) fit into max_cols.
             std::size_t ka1 = ka0, cols = 0;
             coff.clear();
@@ -370,6 +372,7 @@ private:
         const std::size_t Nb = B_.size(), Nka = Ka_.size(), Nkb = Kb_.size();
         std::vector<double> D, E;
         for (std::size_t ka0 = 0; ka0 < Nka; ka0 += batch_) {
+            check_cancelled();
             const std::size_t nk = std::min(batch_, Nka - ka0), cols = nk * Nkb;
             D.assign(nn * cols, 0.0);
             {
@@ -556,6 +559,7 @@ FCIResultGeneral run_fci_determinants(const MOIntegrals& mo, int na, int nb, dou
                                       const FCIOptions& opt, const FCIProgress& progress) {
     const auto t0 = Clock::now();
     const int threads = resolve_threads(opt.threads);
+    report_progress(JobStage::FullCI);
     if (na < 1 || nb < 1 || na > mo.n || nb > mo.n) throw std::runtime_error("Full CI: invalid number of electrons");
     if (binomial_count(mo.n, na) * binomial_count(mo.n, nb) > kMaxFCIDeterminants)
         throw std::runtime_error("Full CI: determinant space above the limit");
@@ -625,6 +629,8 @@ FCIResultGeneral run_fci_determinants(const MOIntegrals& mo, int na, int nb, dou
         FCIIteration rec{it, theta + nuclear_repulsion, rn, static_cast<int>(m)};
         r.history.push_back(rec);
         r.iterations = it;
+        report_progress(JobStage::FullCI, it, rec.energy, rn);
+        check_cancelled();
         if (progress) progress(rec);
         if (rn < opt.residual_tol && (it > 1 && std::fabs(theta - theta_prev) < opt.energy_tol)) {
             r.converged = true;

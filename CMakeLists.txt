@@ -29,6 +29,7 @@ add_library(macqc STATIC
   backend/src/gemm.cpp
   backend/src/mo_integrals.cpp
   backend/src/ci.cpp
+  backend/src/job.cpp
   backend/src/calculation.cpp
   backend/src/api.cpp)
 target_include_directories(macqc PUBLIC backend/include)

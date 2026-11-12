@@ -6,6 +6,7 @@
 #include <string>
 
 #include "macqc/calculation.h"
+#include "macqc/job.h"
 #include "macqc/macqc_api.h"
 #include "nlohmann/json.hpp"
 
@@ -340,9 +341,38 @@ std::string output_to_json(const Output& out, int indent) {
 
 }  // namespace macqc
 
+struct macqc_job {
+    macqc::Job job;
+};
+
 extern "C" {
 
-char* macqc_run(const char* input_json) {
+char* macqc_run(const char* input_json) { return macqc_run_job(input_json, nullptr); }
+
+macqc_job* macqc_job_create(void) {
+    try {
+        return new macqc_job();
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void macqc_job_cancel(macqc_job* job) {
+    if (job) job->job.cancelled.store(true);
+}
+
+void macqc_job_progress(const macqc_job* job, int* stage, int* iteration, double* energy, double* residual) {
+    if (!job) return;
+    if (stage) *stage = job->job.stage.load(std::memory_order_relaxed);
+    if (iteration) *iteration = job->job.iteration.load(std::memory_order_relaxed);
+    if (energy) *energy = job->job.energy.load(std::memory_order_relaxed);
+    if (residual) *residual = job->job.residual.load(std::memory_order_relaxed);
+}
+
+void macqc_job_free(macqc_job* job) { delete job; }
+
+char* macqc_run_job(const char* input_json, macqc_job* job) {
+    macqc::JobScope scope(job ? &job->job : nullptr);
     std::string result;
     try {
         macqc::Output out;
@@ -354,6 +384,7 @@ char* macqc_run(const char* input_json) {
             out.error = e.what();
         }
         result = macqc::output_to_json(out);
+        macqc::report_progress(macqc::JobStage::Done);
     } catch (...) {
         result = "{\"error\":\"internal error\",\"hf\":null,\"fci\":null,\"report\":\"\"}";
     }

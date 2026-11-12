@@ -5,6 +5,7 @@
 // Cases with more basis functions than PSILAB_TEST_MAX_NBF (default 130) are skipped;
 // PSILAB_TEST_MAX_NBF=400 runs the complete set (minutes).
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -12,6 +13,7 @@
 #include <iterator>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "macqc/basis.h"
@@ -488,6 +490,56 @@ static void test_api() {
     CHECK(!heh["input"].contains("molecule"));
 }
 
+// Job handles: progress while running, cancellation from another thread.
+static void test_jobs() {
+    // Cancel an integral-direct RHF once its SCF iterations have started.
+    macqc_job* job = macqc_job_create();
+    CHECK(job != nullptr);
+    char* raw = nullptr;
+    std::thread worker([&] {
+        raw = macqc_run_job(R"({"molecule":"H2O","basis":"aug-cc-pVTZ","memoryMB":0,"printLevel":0})", job);
+    });
+    int stage = 0, iteration = 0;
+    double energy = 0.0, residual = 0.0;
+    for (int k = 0; k < 20000 && stage != 2; ++k) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        macqc_job_progress(job, &stage, &iteration, &energy, &residual);
+    }
+    CHECK(stage == 2);  // SCF iterations running
+    macqc_job_cancel(job);
+    worker.join();
+    const json cancelled = json::parse(raw);
+    macqc_free(raw);
+    CHECK(cancelled["error"].is_string() && cancelled["error"].get<std::string>() == "calculation cancelled");
+    CHECK(cancelled["rhf"].is_null());
+    macqc_job_free(job);
+
+    // A Full CI job reports its stages and ends in stage 5 (done).
+    job = macqc_job_create();
+    int seen = 0;
+    raw = nullptr;
+    std::thread fci([&] {
+        raw = macqc_run_job(R"({"molecule":"LiH","basis":"aug-cc-pVDZ","method":"FCI","printLevel":0})", job);
+    });
+    for (int k = 0; k < 60000; ++k) {
+        macqc_job_progress(job, &stage, &iteration, &energy, &residual);
+        if (stage == 4 && iteration > 0) seen = 1;
+        if (stage == 5) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    fci.join();
+    const json done = json::parse(raw);
+    macqc_free(raw);
+    macqc_job_progress(job, &stage, &iteration, &energy, &residual);
+    CHECK(done["error"].is_null() && stage == 5);
+    CHECK(seen == 1);
+    macqc_job_free(job);
+    // macqc_run without a job and NULL handles stay safe.
+    macqc_job_cancel(nullptr);
+    macqc_job_progress(nullptr, &stage, nullptr, nullptr, nullptr);
+    macqc_job_free(nullptr);
+}
+
 int main() {
     try {
         test_boys();
@@ -497,6 +549,7 @@ int main() {
         test_rhf_reference();
         test_hf_limits();
         test_api();
+        test_jobs();
     } catch (const std::exception& e) {
         std::printf("FAIL exception: %s\n", e.what());
         ++g_failures;

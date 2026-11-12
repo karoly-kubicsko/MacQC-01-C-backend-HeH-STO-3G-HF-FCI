@@ -1,7 +1,9 @@
 #!/bin/bash
 # UI smoke test for the built ΨLab.app on a GitHub macOS runner.
 # Launches the app, screenshots each tab, dumps the visible text of every tab to the log,
-# runs the potential-curve scan and checks the Edit/File menu commands.
+# runs the potential-curve scan and checks the Edit/File menu commands; then relaunches with
+# launch arguments for H2O (RHF), LiH (Full CI), an H2 potential curve, the refused Full CI
+# of H2O and a long H2O calculation (warning).
 # Never fails the job: it only gathers evidence (screenshots + text) for review.
 #
 # Usage: ui_smoke.sh path/to/ΨLab.app output-dir
@@ -119,7 +121,18 @@ with_timeout() {
     return $rc
 }
 
-shot() { screencapture -x "$OUT/$1.png" || echo "screencapture failed for $1"; }
+# Screenshot, and print it at once into the log as a downscaled base64 JPEG, so the images can
+# be read through the GitHub API without downloading the artifact (and survive a timeout).
+# Decode: the line between "IMG_BEGIN name" and "IMG_END name".
+shot() {
+    screencapture -x "$OUT/$1.png" || { echo "screencapture failed for $1"; return; }
+    if sips -s format jpeg -s formatOptions 60 -Z 1100 "$OUT/$1.png" --out "$OUT/$1.jpg" > /dev/null 2>&1; then
+        echo "IMG_BEGIN $1"
+        base64 -i "$OUT/$1.jpg" | tr -d '\n'
+        echo
+        echo "IMG_END $1"
+    fi
+}
 
 dump_tab() {   # $1 = file prefix, $2 = element to click ("" = none)
     echo "::group::UI text: $1"
@@ -230,17 +243,78 @@ with_timeout 90 osascript "$OUT/tab.applescript" "__SCAN__" | grep -E "CLICKED|N
 sleep 8
 shot "dark-05-curve-after-scan"
 
-# Print downscaled screenshots into the log as base64 JPEG so they can be read through the
-# GitHub API without downloading the artifact. Decode: lines between IMG_BEGIN/IMG_END.
-echo "== screenshots (base64 JPEG)"
-for f in "$OUT"/*.png; do
-    name=$(basename "$f" .png)
-    sips -s format jpeg -s formatOptions 60 -Z 1100 "$f" --out "$OUT/$name.jpg" > /dev/null 2>&1 || continue
-    echo "IMG_BEGIN $name"
-    base64 -i "$OUT/$name.jpg" | tr -d '\n'
-    echo
-    echo "IMG_END $name"
-done
+# --- ΨLab 3.0: H2, LiH, H2O (launch arguments select molecule, basis set and method) ---------
+# Selects a tab through View > <item> (unambiguous: the sidebar also has a "Full CI" segment),
+# then dumps the visible text and takes a screenshot.
+cat > "$OUT/view-menu.applescript" <<'APPLESCRIPT'
+on run argv
+    tell application "System Events"
+        tell process "ΨLab"
+            set frontmost to true
+            click menu item (item 1 of argv) of menu 1 of menu bar item "View" of menu bar 1
+        end tell
+    end tell
+    return "VIEW MENU " & (item 1 of argv)
+end run
+APPLESCRIPT
+view_tab() {   # $1 = file prefix, $2 = View menu item
+    with_timeout 20 osascript "$OUT/view-menu.applescript" "$2" || echo "could not select $2"
+    sleep 2
+    dump_tab "$1" ""
+}
+relaunch() {   # $@ = launch arguments
+    pkill -x "ΨLab" || true
+    sleep 3
+    open -n "$APP" --args "$@"
+    sleep 20
+}
+echo "== H2O, RHF/aug-cc-pVDZ"
+relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -psilabMethod RHF
+view_tab "10-h2o-rhf-summary" "Summary"
+view_tab "11-h2o-rhf-hartree-fock" "Hartree–Fock"
+view_tab "12-h2o-rhf-report" "Report"
+
+echo "== LiH, Full CI/aug-cc-pVDZ"
+relaunch -appearanceChoice light -psilabMolecule LiH -psilabBasis aug-cc-pVDZ -psilabMethod FCI
+view_tab "13-lih-fci-summary" "Summary"
+view_tab "14-lih-fci-full-ci" "Full CI"
+
+echo "== H2, Full CI/aug-cc-pVDZ potential curve"
+relaunch -appearanceChoice light -psilabMolecule H2 -psilabBasis aug-cc-pVDZ -psilabMethod FCI
+view_tab "15-h2-curve" "Potential Curve"
+with_timeout 90 osascript "$OUT/tab.applescript" "__SCAN__" | grep -E "CLICKED|NOT FOUND"
+sleep 25
+dump_tab "16-h2-curve-after-scan" ""
+
+echo "== H2O, Full CI (must be refused) and a long calculation (warning)"
+relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -psilabMethod FCI
+view_tab "17-h2o-fci-refused" "Summary"
+relaunch -appearanceChoice dark -psilabMolecule H2O -psilabBasis aug-cc-pCV5Z -psilabMethod RHF
+view_tab "18-h2o-cv5z-warning-dark" "Summary"
 
 pkill -x "ΨLab" || true
+
+# Crash reports of this run (none expected): print the crashed thread's backtrace.
+echo "::group::crash reports"
+find "$HOME/Library/Logs/DiagnosticReports" /Library/Logs/DiagnosticReports -name '*Lab*' -mmin -40 2>/dev/null | while read -r report; do
+    echo "== $report"
+    python3 - "$report" <<'PY' || head -c 6000 "$report"
+import json, sys
+text = open(sys.argv[1]).read()
+header, _, body = text.partition("\n")
+try:
+    d = json.loads(body)
+except Exception:
+    print(text[:6000]); sys.exit(0)
+print("exception:", d.get("exception"), "termination:", d.get("termination", {}).get("indicator"))
+print("asi:", d.get("asi"))
+images = d.get("usedImages", [])
+for t in d.get("threads", []):
+    if t.get("triggered"):
+        for f in t.get("frames", [])[:40]:
+            img = images[f.get("imageIndex", 0)].get("name", "?") if images else "?"
+            print("  ", img, f.get("symbol", "?"), "+", f.get("symbolLocation", ""))
+PY
+done
+echo "::endgroup::"
 exit 0

@@ -43,15 +43,17 @@ Use *File ▸ Add Files to "PsiLab"…* (or drag from Finder). Always: **"Copy i
 
 | What | Files | Target membership |
 | --- | --- | --- |
-| App | everything in `app/MacQC/` (12 `.swift` files, `MacQC-Bridging-Header.h` and `Assets.xcassets`) | `.swift`: PsiLab; header: none needed |
-| Backend sources | `backend/src/linalg.cpp`, `integrals.cpp`, `report.cpp`, `scf.cpp`, `fci.cpp`, `molecule.cpp`, `basis.cpp`, `gto_integrals.cpp`, `rhf.cpp`, `molecular.cpp`, `gemm.cpp`, `mo_integrals.cpp`, `ci.cpp`, `calculation.cpp`, `api.cpp` | PsiLab |
+| App | everything in `app/MacQC/` (14 `.swift` files, `MacQC-Bridging-Header.h` and `Assets.xcassets`) | `.swift`: PsiLab; header: none needed |
+| Backend sources | `backend/src/linalg.cpp`, `integrals.cpp`, `report.cpp`, `scf.cpp`, `fci.cpp`, `molecule.cpp`, `basis.cpp`, `gto_integrals.cpp`, `rhf.cpp`, `molecular.cpp`, `gemm.cpp`, `mo_integrals.cpp`, `ci.cpp`, `job.cpp`, `calculation.cpp`, `api.cpp` | PsiLab |
+| Basis sets | the folder `basis/` — add it as a **folder reference** ("Create folder references"), so it is copied as `Contents/Resources/basis` | PsiLab (Copy Bundle Resources) |
 | Backend headers | `backend/include/macqc/*.h` | (headers only) |
 | JSON library | `third_party/nlohmann/json.hpp` | (header only) |
 
 **Do not add** `backend/cli/main.cpp`, anything in `backend/tests/`, or `reference/` (the CLI and
 the test program have their own `main`, which would clash with the app's).
 
-Check *PsiLab target ▸ Build Phases ▸ Compile Sources*: exactly 12 Swift files + 7 C++ files.
+Check *PsiLab target ▸ Build Phases ▸ Compile Sources*: exactly 14 Swift files + 16 C++ files, and
+*Copy Bundle Resources*: `Assets.xcassets` and the blue folder `basis`.
 
 ## 3. Build settings
 

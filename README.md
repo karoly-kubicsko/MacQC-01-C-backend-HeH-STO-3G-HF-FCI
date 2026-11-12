@@ -1,14 +1,23 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 2.0** — see [Versions](#versions). Version 3.0 (H₂, LiH and H₂O in
-correlation-consistent basis sets) is being built in stages; its backend and terminal version
-are described in [General molecules](#general-molecules-h2-lih-h2o-version-30-in-progress).
+**Current version: 3.0** — see [Versions](#versions).
 
-ΨLab computes the HeH⁺ molecular ion in a minimal STO-nG basis (n = 1, 2, 3): a restricted
-Hartree–Fock calculation and then Full CI on top of it. It shows the energies, integrals and
-matrices, the CI vector and the spin of every state, and scans the potential-energy curve from
-0.8 to 5.0 bohr with the HF and FCI minima marked. SwiftUI with Liquid Glass on macOS 26; runs
-on macOS 14 and later, on Apple Silicon and Intel Macs.
+ΨLab computes small molecules with restricted Hartree–Fock and Full CI:
+
+- **H₂, LiH and H₂O** in the correlation-consistent basis sets aug-cc-pVXZ and aug-cc-pCVXZ
+  (X = D, T, Q, 5; spherical Gaussians up to h functions, from basissetexchange.org) — RHF for all
+  of them, Full CI for H₂ and LiH where it is feasible. Before a calculation ΨLab shows its size
+  (basis functions, two-electron integrals, determinants), memory and estimated time; it warns
+  about long calculations and refuses impossible ones with an explanation (e.g. Full CI for H₂O:
+  5.6·10¹¹ determinants already in aug-cc-pVDZ).
+- **HeH⁺** in a minimal STO-nG basis (n = 1, 2, 3), the Szabo–Ostlund calculation: Hartree–Fock
+  identical to the book's program, Full CI with all states and their spin.
+
+It shows energies, orbital energies, SCF and Davidson iterations, the leading CI determinants and
+natural-orbital occupations, the full text report, and scans potential-energy curves with the
+minima marked. SwiftUI with Liquid Glass on macOS 26; runs on macOS 14 and later, on Apple
+Silicon and Intel Macs. The same calculations run in the terminal on Linux and macOS
+([`psilab`](#terminal-version-linux)).
 
 ![App icon](app/icon/AppIcon-1024.png)
 
@@ -17,12 +26,31 @@ on macOS 14 and later, on Apple Silicon and Intel Macs.
 - **Download**: *Actions* ▸ *app* ▸ the newest run on `main` ▸ *Artifacts* ▸ **ΨLab-app**. Unzip
   `ΨLab-app.zip`, then the `ΨLab.app.zip` inside it. The app is not notarized: right-click
   `ΨLab.app` ▸ *Open* once, or run `xattr -dr com.apple.quarantine` on it.
-- **Sidebar**: bond length R in Å and, below it, in bohr (both editable), Slater exponents ζ(He) and ζ(H), basis STO-1G/2G/3G, the
-  exact-erf option and the appearance (System / Light / Dark). **Run** (⌘R) calculates;
-  *Reset to Szabo–Ostlund defaults* restores R = 1.4632 bohr, ζ = 2.0925 / 1.24, STO-3G.
-- **Tabs**: *Summary* (HF and FCI energies, correlation energy, convergence), *Hartree–Fock*
-  (integrals, S/H/F/C/P matrices, orbital energies, SCF iterations), *Full CI* (determinants, CI
-  vector, singlet weights, all states with ⟨S²⟩) and *Potential curve* (scan with a selectable step in Å).
+- **Sidebar**: the **molecule** (HeH⁺, H₂, LiH, H₂O) and, for H₂, LiH and H₂O:
+  - the geometry: bond length in Å and in bohr (both editable) and, for H₂O, the H–O–H angle;
+    *Experimental geometry* restores 0.74144 Å (H₂), 1.5949 Å (LiH), 0.9572 Å and 104.52° (H₂O);
+  - the **method** (RHF or Full CI) and the **basis set** (aug-cc-pVDZ … aug-cc-pV5Z,
+    aug-cc-pCVDZ … aug-cc-pCV5Z);
+  - *Size of the calculation*, updated as you type: basis functions per atom, two-electron
+    integrals (kept in memory or integral-direct), Full CI determinants and memory, estimated time.
+    Notes (e.g. H takes aug-cc-pVXZ in the core-valence sets) in grey, warnings in orange, and a
+    red explanation when the calculation is not possible (then **Run** is disabled); the run bar and,
+    before the first result, the detail area repeat the refusal or the long-calculation warning.
+
+  For HeH⁺: R in Å and bohr, Slater exponents ζ(He) and ζ(H), STO-1G/2G/3G, the exact-erf option;
+  *Reset to Szabo–Ostlund defaults* restores R = 1.4632 bohr, ζ = 2.0925 / 1.24, STO-3G. Below:
+  the appearance (System / Light / Dark).
+- **Run** (⌘R) calculates on all processor cores. A calculation estimated to take longer than
+  30 s asks for confirmation first; while it runs, the sidebar shows the progress (SCF iteration,
+  integral transformation, Davidson iteration with energy and residual) and the elapsed time, and
+  **Cancel** (⌘.) stops it.
+- **Tabs**: *Summary* (energies, geometry, basis set per atom, convergence, timings),
+  *Hartree–Fock* (energy components and virial ratio, orbital energies, SCF iterations; for HeH⁺
+  also the integrals and the S/H/F/C/P matrices), *Full CI* (energies, ⟨S²⟩, leading determinants,
+  natural-orbital occupations, Davidson iterations; for HeH⁺ the CI vector, singlet weights and all
+  states), *Potential curve* (bond-length scan with a selectable step in Å — H₂O as a symmetric
+  stretch — with the RHF and Full CI minima; long scans ask for confirmation and can be stopped)
+  and *Report* (the complete text report); *View ▸ Summary … Report* (⌘1 … ⌘5) switches tabs.
 - **Menus**: *File ▸ Export Results as Text…* (⇧⌘E) saves a `.txt` file with the summary, the full
   calculation report (every SCF iteration, the Full CI section) and, after a scan, the potential-curve
   table; *File ▸ Export Results as JSON…* (⌥⇧⌘E) saves the same results as JSON;
@@ -31,6 +59,24 @@ on macOS 14 and later, on Apple Silicon and Intel Macs.
   `xcode/project.yml`).
 
 ## Versions
+
+### 3.0
+- **H₂, LiH and H₂O** in eight correlation-consistent basis sets (aug-cc-pVXZ, aug-cc-pCVXZ,
+  X = D … 5), read from Gaussian94 files from basissetexchange.org (`basis/`): a general Gaussian
+  integral engine up to h functions, restricted Hartree–Fock (DIIS, integrals in memory or
+  integral-direct, multithreaded) and a determinant-based Full CI (H₂ in all basis sets, LiH up to
+  aug-cc-pCVTZ with 11 million determinants).
+- Verified against PySCF (all 23 RHF energies and every Full CI energy identical to 10 decimals),
+  against dense-matrix Full CI, and against published Hartree–Fock limits and exact energies.
+- Size, memory and time estimates before running; warnings for long calculations; impossible
+  ones are refused with an explanation (Full CI for H₂O, LiH from aug-cc-pVQZ on, LiH in
+  aug-cc-pCV5Z which is not defined for Li).
+- App: molecule, method and basis-set pickers, geometry inputs (bond length; H₂O bond length and
+  angle), live size estimate, progress and cancellation of running calculations, new Summary,
+  Hartree–Fock and Full CI views for the new molecules, a Report tab, potential curves for all
+  molecules.
+- Terminal version: `molecule`, `basis`, `angle`, `method = RHF | FCI`, `threads`, `memory`,
+  `fci_memory`, `basis_dir` and `psilab --estimate`.
 
 ### 2.0
 - **Terminal version for Linux** (`psilab`, also runs on macOS): reads a plain-text input file
@@ -88,7 +134,7 @@ scan_step = 0.1              # bohr
 Missing keys take the values shown (the Szabo–Ostlund case, without scan unless `scan = yes`).
 
 For H₂, LiH and H₂O (restricted Hartree–Fock, see
-[General molecules](#general-molecules-h2-lih-h2o-version-30-in-progress)) the input names the
+[General molecules](#general-molecules-h2-lih-h2o-version-30)) the input names the
 molecule and a basis set; `R` and `angle` default to the experimental equilibrium geometry:
 
 ```text
@@ -144,12 +190,11 @@ For HeH⁺ (two electrons, one s-type STO-nG contracted function per atom, n = 1
 Reference values (R = 1.4632 bohr, STO-3G, ζ = 2.0925 / 1.24): E_HF,total = −2.860661992 Eh
 (6 iterations), E_FCI = −2.880711848 Eh, E_corr = −0.020049857 Eh.
 
-### General molecules: H2, LiH, H2O (version 3.0, in progress)
+### General molecules: H2, LiH, H2O (version 3.0)
 
 ΨLab 3.0 adds H₂, LiH and H₂O (closed shell) in the correlation-consistent basis sets aug-cc-pVXZ
 and aug-cc-pCVXZ (X = D, T, Q, 5), up to h functions (l = 5) and up to 341 basis functions (H₂O in
-aug-cc-pCV5Z), with restricted Hartree–Fock and Full CI. Stages 1 and 2 (this part) are the
-integral engine, RHF and Full CI in the backend and in `psilab`; the app's user interface follows.
+aug-cc-pCV5Z), with restricted Hartree–Fock and Full CI, in the app and in `psilab`.
 
 - **Basis sets**: the Gaussian94 files in [`basis/`](basis/README.md), downloaded from the Basis
   Set Exchange and read at run time (`basis.cpp`, G94 parser with `D` exponents, SP shells, scale
@@ -270,7 +315,7 @@ H takes the aug-cc-pVXZ functions)
 backend/include/macqc/   public headers (macqc_api.h is the C API)
 backend/src/             linalg, integrals, scf, fci, report, calculation, api (HeH+, STO-nG);
                          molecule, basis, gto_integrals, rhf, molecular (H2, LiH, H2O);
-                         gemm, mo_integrals, ci (Full CI for H2, LiH)
+                         gemm, mo_integrals, ci (Full CI for H2, LiH); job (cancel/progress)
 basis/                   Gaussian94 basis-set files from basissetexchange.org (+ README)
 backend/cli/main.cpp     developer command-line tool `macqc` (flags / JSON)
 backend/cli/psilab*      terminal version `psilab` (text input file -> text output file)
@@ -321,7 +366,19 @@ every SCF iteration.
 ```c
 char* macqc_run(const char* input_json);   // never throws; returns malloc'ed JSON
 void  macqc_free(char* p);                 // release the string
+
+// Jobs: cancellation and progress of long calculations (thread-safe).
+macqc_job* macqc_job_create(void);
+char* macqc_run_job(const char* input_json, macqc_job* job);   // like macqc_run
+void  macqc_job_cancel(macqc_job* job);    // from another thread; the run then returns
+                                           // "error": "calculation cancelled"
+void  macqc_job_progress(const macqc_job* job, int* stage, int* iteration,
+                         double* energy, double* residual);
+      // stage 0 idle, 1 integrals, 2 SCF, 3 integral transformation, 4 Full CI, 5 done
+void  macqc_job_free(macqc_job* job);      // after macqc_run_job has returned
 ```
+
+The app polls `macqc_job_progress` four times a second for the progress line of the sidebar.
 
 #### Input JSON
 
@@ -424,7 +481,8 @@ How the backend is wired into the ΨLab Xcode target (the full step-by-step guid
 2. In the app target's **Build Phases ▸ Compile Sources** add exactly these files:
    `backend/src/linalg.cpp`, `integrals.cpp`, `report.cpp`, `scf.cpp`, `fci.cpp`,
    `molecule.cpp`, `basis.cpp`, `gto_integrals.cpp`, `rhf.cpp`, `molecular.cpp`, `gemm.cpp`,
-   `mo_integrals.cpp`, `ci.cpp`, `calculation.cpp`, `api.cpp`. Do **not** add `backend/cli/main.cpp` or anything in
+   `mo_integrals.cpp`, `ci.cpp`, `job.cpp`, `calculation.cpp`, `api.cpp`; add the folder `basis/`
+   as a folder reference to *Copy Bundle Resources* (the app passes its path as `basisDirectory`). Do **not** add `backend/cli/main.cpp` or anything in
    `backend/tests/` (they have their own `main`). Headers (`backend/include/macqc/*.h` and
    `third_party/nlohmann/json.hpp`) need no compile phase but should be in the project.
 3. **Build Settings ▸ Header Search Paths** (`HEADER_SEARCH_PATHS`): add
@@ -475,5 +533,8 @@ XcodeGen project spec in `xcode/project.yml`. See [`app/SETUP.md`](app/SETUP.md)
   installs PySCF and recomputes the stored integral and RHF reference values; run manually with
   the input *full*, a third job checks every RHF case up to 341 basis functions.
 - `.github/workflows/app.yml` builds the universal ΨLab app on a `macos-26` runner (XcodeGen +
-  Xcode), runs a UI smoke test (launch, all tabs, potential-curve scan, menus, light and dark
-  appearance, screenshots) and publishes the **ΨLab-app** download.
+  Xcode), checks that the basis-set files are inside the bundle, runs a UI smoke test (launch, all
+  tabs, potential-curve scans, menus, light and dark appearance; H₂O RHF, LiH Full CI, an H₂ curve,
+  the refused Full CI of H₂O and a long-calculation warning, selected with launch arguments
+  `-psilabMolecule`, `-psilabBasis`, `-psilabMethod`; screenshots) and publishes the **ΨLab-app**
+  download.

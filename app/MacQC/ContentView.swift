@@ -21,9 +21,17 @@ struct ContentView: View {
         .navigationTitle("ΨLab")
         .preferredColorScheme((AppearanceChoice(rawValue: appearanceRaw) ?? .system).colorScheme)
         .task {
-            // Show a result right away with the Szabo–Ostlund defaults.
+            // Show a result right away (the Szabo–Ostlund defaults, or the molecule given as a
+            // launch argument). Large general calculations wait for Run.
             if model.result == nil {
-                await model.run()
+                if model.isGeneral {
+                    await model.refreshEstimate()
+                    if model.refusal == nil && !model.isLongCalculation {
+                        await model.run()
+                    }
+                } else {
+                    await model.run()
+                }
             }
         }
     }
@@ -49,12 +57,46 @@ struct DetailView: View {
             PotentialCurveView(model: model)
                 .tabItem { Label("Potential curve", systemImage: "chart.xyaxis.line") }
                 .tag(DetailTab.potentialCurve)
+
+            ReportView(model: model)
+                .tabItem { Label("Report", systemImage: "doc.plaintext") }
+                .tag(DetailTab.report)
         }
         .padding(.top, 4)
     }
 }
 
 // MARK: - Shared small views
+
+/// Banner in the detail area before a result exists: why the current settings cannot be calculated (red), or that the
+/// calculation will take long (orange).
+struct StatusBanner: View {
+    enum Kind {
+        case refusal, warning
+    }
+
+    var kind: Kind
+    var text: String
+
+    var body: some View {
+        let color: Color = kind == .refusal ? .red : .orange
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(kind == .refusal ? "Not possible with these settings" : "Long calculation")
+                    .font(.headline)
+                Text(text)
+                    .textSelection(.enabled)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } icon: {
+            Image(systemName: kind == .refusal ? "xmark.octagon.fill" : "clock.badge.exclamationmark")
+                .foregroundStyle(color)
+        }
+        .padding(12)
+        .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(color.opacity(0.35), lineWidth: 1))
+    }
+}
 
 /// Red banner for errors returned by the backend (or by the wrapper).
 struct ErrorBanner: View {
@@ -99,10 +141,19 @@ struct NoResultView: View {
                 ErrorBanner(message: message)
                     .frame(maxWidth: 560)
             }
+            if model.isGeneral, let refusal = model.refusal {
+                StatusBanner(kind: .refusal, text: refusal)
+                    .frame(maxWidth: 560)
+            } else if model.isGeneral && model.isLongCalculation, let warning = model.estimate?.warnings?.first {
+                StatusBanner(kind: .warning, text: warning + " Run asks for confirmation; a running calculation can be cancelled.")
+                    .frame(maxWidth: 560)
+            }
             ContentUnavailableView(
                 "No results yet",
                 systemImage: "atom",
-                description: Text("Press Run to start a Hartree–Fock and Full CI calculation.")
+                description: Text(model.isGeneral
+                                  ? "Choose the basis set and method in the sidebar and press Run."
+                                  : "Press Run to start a Hartree–Fock and Full CI calculation.")
             )
         }
         .padding()

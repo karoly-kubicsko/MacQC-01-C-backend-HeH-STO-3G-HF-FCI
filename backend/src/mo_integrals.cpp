@@ -5,6 +5,7 @@
 #include <stdexcept>
 
 #include "macqc/gto_integrals.h"
+#include "macqc/job.h"
 #include "macqc/parallel.h"
 
 namespace macqc {
@@ -38,6 +39,7 @@ MOIntegrals transform_to_mo(const BasisSet& basis, const Matrix& h_ao, const Mat
     const std::size_t n = Cm.cols();
     if (Cm.rows() != N || h_ao.rows() != N) throw std::invalid_argument("transform_to_mo: dimension mismatch");
     const int threads = resolve_threads(threads_requested);
+    report_progress(JobStage::Transformation);
     std::vector<double> C(N * n);
     for (std::size_t i = 0; i < N; ++i)
         for (std::size_t j = 0; j < n; ++j) C[i * n + j] = Cm(i, j);
@@ -69,6 +71,7 @@ MOIntegrals transform_to_mo(const BasisSet& basis, const Matrix& h_ao, const Mat
             EriEngine engine(basis);
             std::vector<double> G, t1, t2, out;
             for (std::size_t k; (k = next++) < npairs;) {
+                check_cancelled();
                 const ShellPair& bra = pairs.pairs[npairs - 1 - k];
                 if (bra.prims.empty()) continue;
                 const Shell& A = basis.shells[bra.a];
@@ -117,6 +120,7 @@ MOIntegrals transform_to_mo(const BasisSet& basis, const Matrix& h_ao, const Mat
         run_parallel(threads, [&](int) {
             std::vector<double> Y, t1, t2, out;
             for (std::size_t b0; (b0 = batch * next++) < mo.npair;) {
+                check_cancelled();
                 const std::size_t nb = std::min(batch, mo.npair - b0);
                 Y.assign(nb * N * N, 0.0);
                 for (std::size_t b = 0; b < nb; ++b) {
