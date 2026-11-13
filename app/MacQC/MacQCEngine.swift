@@ -38,12 +38,21 @@ nonisolated struct MacQCInput: Codable, Sendable, Equatable {
     var memoryMB: Double = 1024
     var fciMemoryMB: Double = 4096
     var estimateOnly: Bool = false
+    // ΨLab 5.0 job types (general molecules)
+    var job: String = "energy"      // "energy", "opt", "freq", "opt+freq", "opt+freq+sp"
+    var spMethod: String = ""       // opt+freq+sp ("" = method)
+    var spBasis: String = ""        // opt+freq+sp ("" = basis)
+    var temperature: Double = 298.15
+    var pressure: Double = 101325
+    var optConvergence: String = "normal"
+    var maxSteps: Int = 50
 
     init() {}
 
     private enum CodingKeys: String, CodingKey {
         case molecule, R, zeta1, zeta2, ZA, ZB, nGaussians, exactErf, maxIter, convergence, printLevel
         case basis, angle, method, basisDirectory, threads, memoryMB, fciMemoryMB, estimateOnly
+        case job, spMethod, spBasis, temperature, pressure, optConvergence, maxSteps
     }
 
     init(from decoder: Decoder) throws {
@@ -68,6 +77,13 @@ nonisolated struct MacQCInput: Codable, Sendable, Equatable {
         memoryMB = try c.decodeIfPresent(Double.self, forKey: .memoryMB) ?? d.memoryMB
         fciMemoryMB = try c.decodeIfPresent(Double.self, forKey: .fciMemoryMB) ?? d.fciMemoryMB
         estimateOnly = try c.decodeIfPresent(Bool.self, forKey: .estimateOnly) ?? d.estimateOnly
+        job = try c.decodeIfPresent(String.self, forKey: .job) ?? d.job
+        spMethod = try c.decodeIfPresent(String.self, forKey: .spMethod) ?? d.spMethod
+        spBasis = try c.decodeIfPresent(String.self, forKey: .spBasis) ?? d.spBasis
+        temperature = try c.decodeIfPresent(Double.self, forKey: .temperature) ?? d.temperature
+        pressure = try c.decodeIfPresent(Double.self, forKey: .pressure) ?? d.pressure
+        optConvergence = try c.decodeIfPresent(String.self, forKey: .optConvergence) ?? d.optConvergence
+        maxSteps = try c.decodeIfPresent(Int.self, forKey: .maxSteps) ?? d.maxSteps
     }
 
     /// True for H2, LiH and H2O (the general Gaussian-basis path).
@@ -348,6 +364,226 @@ nonisolated struct MacQCCoupledCluster: Codable, Sendable, Equatable {
     var totalCorrelation: Double { totalEnergy - referenceEnergy }
 }
 
+// MARK: - Jobs of ΨLab 5.0 (optimisation, frequencies, thermochemistry)
+
+/// A geometry: atoms (bohr) and the parameters of the inputs (R in bohr; H₂O: both O–H
+/// distances, their mean and the H–O–H angle in degrees).
+nonisolated struct MacQCGeometry: Codable, Sendable, Equatable {
+    var atoms: [MacQCAtom]
+    var R: Double?
+    var R1: Double?
+    var R2: Double?
+    var angle: Double?
+}
+
+nonisolated struct MacQCJobStep: Codable, Sendable, Equatable, Identifiable {
+    var name: String
+    var method: String
+    var basis: String
+    var how: String
+    var analytic: Bool
+    var evaluations: Int
+    var evaluationKind: String      // "steps", "gradients", "energies", "Hessians"
+    var seconds: Double
+    var memoryMB: Double
+
+    var id: String { name }
+}
+
+nonisolated struct MacQCJobEstimate: Codable, Sendable, Equatable {
+    var steps: [MacQCJobStep]
+    var totalSeconds: Double
+    var memoryMB: Double
+    var longCalculation: Bool
+    var refusal: String?
+    var warnings: [String]
+    var notes: [String]
+}
+
+nonisolated struct MacQCJobInfo: Codable, Sendable, Equatable {
+    var type: String
+    var title: String
+    var termination: String          // "normal", "error", "refused", "cancelled", "estimate"
+    var completed: Bool
+    var message: String?
+    var estimate: MacQCJobEstimate
+    var warnings: [String]
+    var seconds: Double
+    var initialGeometry: MacQCGeometry?
+    var finalGeometry: MacQCGeometry?
+    var finalEnergy: Double?
+    var finalEnergyLabel: String?
+    var singlePointMethod: String?
+    var singlePointBasis: String?
+}
+
+nonisolated struct MacQCParameter: Codable, Sendable, Equatable, Identifiable {
+    var name: String
+    var value: Double                // bohr or degrees
+    var angle: Bool
+
+    var id: String { name }
+}
+
+nonisolated struct MacQCInternalCoordinate: Codable, Sendable, Equatable, Identifiable {
+    var name: String
+    var definition: String
+    var value: Double                // bohr or radians
+    var gradient: Double             // E_h/bohr or E_h/rad
+    var step: Double?
+
+    var id: String { name }
+}
+
+nonisolated struct MacQCConvergenceItem: Codable, Sendable, Equatable, Identifiable {
+    var name: String
+    var value: Double?
+    var threshold: Double
+    var met: Bool
+    var applicable: Bool
+
+    var id: String { name }
+}
+
+nonisolated struct MacQCOptimizationStep: Codable, Sendable, Equatable, Identifiable {
+    var step: Int
+    var energy: Double
+    var deltaE: Double?
+    var geometry: MacQCGeometry
+    var coordinates: [MacQCInternalCoordinate]
+    var convergence: [MacQCConvergenceItem]
+    var converged: Bool
+    var hessianUpdate: String
+    var trustRadius: Double
+    var stepNorm: Double
+    var stepScaled: Bool
+    var predictedChange: Double
+    var ratio: Double?
+    var warnings: [String]
+    var seconds: Double
+
+    var id: Int { step }
+
+    /// Value of a convergence item by position: 0 max force, 1 RMS force, 2 max step, 3 RMS step.
+    func criterion(_ index: Int) -> Double? {
+        index < convergence.count ? convergence[index].value : nil
+    }
+}
+
+nonisolated struct MacQCCriteria: Codable, Sendable, Equatable {
+    var maxForce: Double
+    var rmsForce: Double
+    var maxDisplacement: Double
+    var rmsDisplacement: Double
+    var energy: Double
+}
+
+nonisolated struct MacQCOptimization: Codable, Sendable, Equatable {
+    var converged: Bool
+    var steps: Int
+    var message: String
+    var initialHessian: String
+    var gradient: String?
+    var criteria: MacQCCriteria
+    var initialEnergy: Double
+    var finalEnergy: Double
+    var initialGeometry: MacQCGeometry
+    var finalGeometry: MacQCGeometry
+    var initialParameters: [MacQCParameter]
+    var finalParameters: [MacQCParameter]
+    var symmetricStart: Bool
+    var symmetricEnd: Bool
+    var symmetryDeviation: Double
+    var history: [MacQCOptimizationStep]
+    var seconds: Double
+}
+
+nonisolated struct MacQCNormalMode: Codable, Sendable, Equatable {
+    var wavenumber: Double           // cm⁻¹, negative = imaginary
+    var imaginary: Bool
+    var symmetry: String
+    var reducedMass: Double          // u
+    var forceConstant: Double        // mdyn/Å
+    var irIntensity: Double?         // km/mol
+    var displacement: [[Double]]     // normalised Cartesian displacement per atom
+}
+
+nonisolated struct MacQCFrequencies: Codable, Sendable, Equatable {
+    var analytic: Bool
+    var description: String
+    var numericalReason: String?
+    var gradientEvaluations: Int
+    var energyEvaluations: Int
+    var coordinates: [String]
+    var intensities: Bool
+    var intensityDescription: String
+    var dipole: [Double]?
+    var linear: Bool
+    var vibrations: Int
+    var masses: [Double]
+    var isotopes: [String]
+    var geometry: MacQCGeometry
+    var energy: Double
+    var lowFrequencies: [Double]
+    var modes: [MacQCNormalMode]
+    var seconds: Double
+}
+
+nonisolated struct MacQCThermoTerm: Codable, Sendable, Equatable {
+    var energy: Double               // J/mol
+    var entropy: Double              // J/(mol K)
+    var cv: Double                   // J/(mol K)
+    var q: Double
+}
+
+nonisolated struct MacQCThermoTerms: Codable, Sendable, Equatable {
+    var translation: MacQCThermoTerm
+    var rotation: MacQCThermoTerm
+    var vibration: MacQCThermoTerm
+    var electronic: MacQCThermoTerm
+    var total: MacQCThermoTerm
+}
+
+/// Thermal corrections (J/mol) or totals (E_h).
+nonisolated struct MacQCThermoValues: Codable, Sendable, Equatable {
+    var zeroPoint: Double
+    var thermalEnergy: Double
+    var enthalpy: Double
+    var gibbs: Double
+    var helmholtz: Double
+}
+
+nonisolated struct MacQCThermochemistry: Codable, Sendable, Equatable {
+    var temperature: Double
+    var pressure: Double
+    var symmetryNumber: Int
+    var linear: Bool
+    var mass: Double
+    var moments: [Double]                    // u bohr²
+    var rotationalConstantsGHz: [Double]
+    var rotationalConstantsCm: [Double]
+    var rotationalTemperatures: [Double]
+    var vibrationalTemperatures: [Double]
+    var excludedModes: Int
+    var warnings: [String]
+    var terms: MacQCThermoTerms
+    var zeroPointEnergy: Double              // J/mol
+    var corrections: MacQCThermoValues       // J/mol
+    var electronicEnergy: Double             // E_h
+    var totals: MacQCThermoValues            // E_h
+}
+
+nonisolated struct MacQCSinglePoint: Codable, Sendable, Equatable {
+    var method: String
+    var energy: Double
+    var converged: Bool
+    var rhfEnergy: Double
+    var correlationEnergy: Double
+    var geometry: MacQCGeometry
+    var warnings: [String]
+    var seconds: Double
+}
+
 /// Output JSON of `macqc_run`. HeH+: `hf` / `fci` (null when the backend reports an error
 /// before producing them). H2, LiH, H2O: `molecule`, `basis`, `estimate`, `notes`,
 /// `warnings`, `refusal`, `rhf`, `fullCI`, `coupledCluster`.
@@ -366,6 +602,14 @@ nonisolated struct MacQCOutput: Codable, Sendable, Equatable {
     var rhf: MacQCRHF?
     var fullCI: MacQCFullCI?
     var coupledCluster: MacQCCoupledCluster?
+    // ΨLab 5.0 (H2, LiH, H2O): the job and its output file; rhf / fullCI / coupledCluster /
+    // molecule / basis describe the final energy calculation of the job.
+    var job: MacQCJobInfo?
+    var optimization: MacQCOptimization?
+    var frequencies: MacQCFrequencies?
+    var thermochemistry: MacQCThermochemistry?
+    var singlePoint: MacQCSinglePoint?
+    var output: String?
 
     /// Energy of the correlated method of this result (Full CI or coupled cluster).
     var correlatedEnergy: Double? { coupledCluster?.totalEnergy ?? fullCI?.totalEnergy }
@@ -382,7 +626,9 @@ nonisolated struct MacQCOutput: Codable, Sendable, Equatable {
 /// Progress of a running calculation, as reported by the backend.
 nonisolated struct MacQCProgress: Sendable, Equatable {
     var stage: Int = 0        // 0 idle, 1 integrals, 2 SCF, 3 transformation, 4 Full CI, 5 done,
-                              // 6 coupled cluster, 7 (T) correction (iteration = percent)
+                              // 6 coupled cluster, 7 (T) correction (iteration = percent);
+                              // 5.0: 8 gradient, 9 Hessian, 10 CPHF, 11 Lambda, 12 optimisation,
+                              // 13 numerical Hessian
     var iteration: Int = 0
     var energy: Double = 0
     var residual: Double = 0
@@ -407,6 +653,18 @@ nonisolated struct MacQCProgress: Sendable, Equatable {
                           iteration, energy, residual)
         case 7:
             return String(format: "(T) correction · %ld %% done", iteration)
+        case 8:
+            return "Gradient…"
+        case 9:
+            return "Hessian…"
+        case 10:
+            return String(format: "Orbital response · iteration %ld · residual %.1e", iteration, residual)
+        case 11:
+            return String(format: "Lambda equations · iteration %ld · max change %.1e", iteration, residual)
+        case 12:
+            return String(format: "Optimisation step %ld", iteration)
+        case 13:
+            return String(format: "Numerical Hessian · displacement %ld", iteration)
         default:
             return "Starting…"
         }
@@ -436,6 +694,22 @@ nonisolated final class MacQCJob: @unchecked Sendable {
         var residual = 0.0
         macqc_job_progress(handle, &stage, &iteration, &energy, &residual)
         return MacQCProgress(stage: Int(stage), iteration: Int(iteration), energy: energy, residual: residual)
+    }
+
+    /// The output file written so far from byte `offset` on, and the total length in bytes
+    /// (the next call passes that total as its offset).
+    func output(from offset: Int) -> (text: String, total: Int) {
+        var total: Int64 = 0
+        guard let raw = macqc_job_output(handle, Int64(offset), &total) else { return ("", offset) }
+        defer { macqc_free(raw) }
+        return (String(cString: raw), Int(total))
+    }
+
+    /// One line about the current step of the job ("Optimisation step 4 · E = … · max force …").
+    func progressText() -> String {
+        guard let raw = macqc_job_progress_text(handle) else { return "" }
+        defer { macqc_free(raw) }
+        return String(cString: raw)
     }
 
     fileprivate var pointer: OpaquePointer? { handle }

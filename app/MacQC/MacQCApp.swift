@@ -18,7 +18,8 @@ struct MacQCApp: App {
         }
         .defaultSize(width: 1180, height: 760)
         .commands {
-            // File > Export Results as Text… / as JSON… (replace the unused "New Window" item)
+            // File > Export Results as Text… (H2, LiH, H2O: the output file) / as JSON… /
+            // Potential Curve as Text… (replace the unused "New Window" item)
             CommandGroup(replacing: .newItem) {
                 Button("Export Results as Text…") {
                     model.exportText()
@@ -31,22 +32,33 @@ struct MacQCApp: App {
                 }
                 .keyboardShortcut("e", modifiers: [.command, .shift, .option])
                 .disabled(!model.canExportOrCopy)
+
+                Button("Export Potential Curve as Text…") {
+                    model.exportCurve()
+                }
+                .disabled(model.curvePoints.isEmpty)
             }
 
-            // View > Summary … Report (⌘1 … ⌘5)
+            // View > the tabs and their pages (⌘1 … ⌘9)
             CommandGroup(before: .toolbar) {
-                Button("Summary") { model.selectedTab = .summary }
+                Button("Summary") { model.show(.summary) }
                     .keyboardShortcut("1", modifiers: [.command])
-                Button("Hartree–Fock") { model.selectedTab = .hartreeFock }
+                Button("Hartree–Fock") { model.show(.methods, methods: .hartreeFock) }
                     .keyboardShortcut("2", modifiers: [.command])
-                Button("Coupled Cluster") { model.selectedTab = .coupledCluster }
+                Button("Coupled Cluster") { model.show(.methods, methods: .coupledCluster) }
                     .keyboardShortcut("3", modifiers: [.command])
-                Button("Full CI") { model.selectedTab = .fullCI }
+                Button("Full CI") { model.show(.methods, methods: .fullCI) }
                     .keyboardShortcut("4", modifiers: [.command])
-                Button("Potential Curve") { model.selectedTab = .potentialCurve }
+                Button("Optimisation") { model.show(.optimization) }
                     .keyboardShortcut("5", modifiers: [.command])
-                Button("Report") { model.selectedTab = .report }
+                Button("Frequencies") { model.show(.frequencies, vibration: .frequencies) }
                     .keyboardShortcut("6", modifiers: [.command])
+                Button("Thermochemistry") { model.show(.frequencies, vibration: .thermochemistry) }
+                    .keyboardShortcut("7", modifiers: [.command])
+                Button("Potential Curve") { model.show(.potentialCurve) }
+                    .keyboardShortcut("8", modifiers: [.command])
+                Button("Output") { model.show(.output) }
+                    .keyboardShortcut("9", modifiers: [.command])
                 Divider()
             }
 

@@ -2,8 +2,9 @@
 //  GeneralViews.swift
 //  MacQC
 //
-//  Detail tabs for H₂, LiH and H₂O: summary, Hartree–Fock, Full CI, and the text report
-//  (shared with HeH⁺); the coupled-cluster tab is in CoupledClusterView.swift.
+//  Detail views for H₂, LiH and H₂O: summary, Hartree–Fock and Full CI pages; the
+//  coupled-cluster page is in CoupledClusterView.swift, the job tabs in JobViews.swift and the
+//  output file in OutputView.swift.
 //
 
 import SwiftUI
@@ -42,6 +43,11 @@ struct GeneralSummaryView: View {
                 }
 
                 NotesPanel(notes: out.notes ?? [], warnings: out.warnings ?? [])
+
+                if let j = out.job, j.type != "energy" {
+                    SectionTitle(j.title)
+                    JobSummaryPanel(model: model, out: out)
+                }
 
                 if let mol = out.molecule {
                     SectionTitle("Molecule")
@@ -100,8 +106,10 @@ struct GeneralSummaryView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
             let name = Fmt.formula(out.molecule?.name ?? out.input.molecule)
-            let method = out.input.method == "RHF" ? "RHF" : "RHF and \(out.methodTitle)"
-            Text("\(name) · \(out.basis?.name ?? out.input.basis) · \(method)")
+            let finalMethod = out.singlePoint?.method ?? out.input.method
+            let method = finalMethod == "RHF" ? "RHF" : "RHF and \(MethodChoice.title(of: finalMethod))"
+            let job = JobChoice(rawValue: out.input.job).map { $0 == .energy ? "" : " · " + $0.shortTitle } ?? ""
+            Text("\(name) · \(out.basis?.name ?? out.input.basis) · \(method)\(job)")
                 .font(.title2.weight(.semibold))
             if let mol = out.molecule {
                 Text(geometryText(mol))
@@ -453,26 +461,5 @@ struct GeneralFullCIView: View {
         .monospacedDigit()
         .textSelection(.enabled)
         .dataPanel()
-    }
-}
-
-// MARK: - Report
-
-/// The backend's text report (FORTRAN-style for HeH⁺, the general report otherwise).
-struct ReportView: View {
-    var model: AppModel
-
-    var body: some View {
-        if let out = model.result, !out.report.isEmpty {
-            ScrollView([.vertical, .horizontal]) {
-                Text(out.report)
-                    .font(.system(.callout, design: .monospaced))
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(20)
-            }
-        } else {
-            NoResultView(model: model)
-        }
     }
 }

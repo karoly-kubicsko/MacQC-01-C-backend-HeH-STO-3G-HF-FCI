@@ -1,6 +1,6 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 4.0** — see [Versions](#versions).
+**Current version: 5.0** — see [Versions](#versions).
 
 ΨLab computes small molecules with restricted Hartree–Fock, coupled cluster and Full CI:
 
@@ -15,9 +15,17 @@
 - **HeH⁺** in a minimal STO-nG basis (n = 1, 2, 3), the Szabo–Ostlund calculation: Hartree–Fock
   identical to the book's program, Full CI with all states and their spin.
 
+For H₂, LiH and H₂O it also **optimises geometries** (redundant internal coordinates, analytic
+gradients for HF, CCSD, CCSD(T) and Full CI), computes **harmonic frequencies, IR intensities and
+thermochemistry** (analytic RHF Hessian; numerical Hessians from analytic gradients or energies
+for the correlated methods) and runs the job types *energy*, *optimisation*, *frequencies*,
+*optimisation + frequencies* and *optimisation + frequencies + single-point energy*, each with a
+complete output file that is written while the job runs.
+
 It shows energies, orbital energies, SCF, coupled-cluster and Davidson iterations, the largest
-cluster amplitudes, the leading CI determinants and natural-orbital occupations, the full text report, and scans potential-energy curves with the
-minima marked. SwiftUI with Liquid Glass on macOS 26; runs on macOS 14 and later, on Apple
+cluster amplitudes, the leading CI determinants and natural-orbital occupations, every
+optimisation step, normal modes, thermochemical tables and the output file, and scans
+potential-energy curves with the minima marked. SwiftUI with Liquid Glass on macOS 26; runs on macOS 14 and later, on Apple
 Silicon and Intel Macs. The same calculations run in the terminal on Linux and macOS
 ([`psilab`](#terminal-version-linux)).
 
@@ -29,13 +37,26 @@ Silicon and Intel Macs. The same calculations run in the terminal on Linux and m
   `ΨLab-app.zip`, then the `ΨLab.app.zip` inside it. The app is not notarized: right-click
   `ΨLab.app` ▸ *Open* once, or run `xattr -dr com.apple.quarantine` on it.
 - **Sidebar**: the **molecule** (HeH⁺, H₂, LiH, H₂O) and, for H₂, LiH and H₂O:
-  - the geometry: bond length in Å and in bohr (both editable) and, for H₂O, the H–O–H angle;
-    *Experimental geometry* restores 0.74144 Å (H₂), 1.5949 Å (LiH), 0.9572 Å and 104.52° (H₂O);
+  - the **job** (a menu, in this order): 1 *Energy*, 2 *Geometry optimisation*, 3 *Frequencies*
+    (at the input geometry; a warning if it is not a stationary point), 4 *Optimisation +
+    frequencies* (frequencies at the optimised geometry), 5 *Optimisation + frequencies +
+    single-point energy* (the single point with its own method and basis set, by default the
+    same; the final energies add the thermal corrections). Jobs 4 and 5 stop with a message if the
+    optimisation does not converge;
+  - the geometry: bond length in Å and in bohr (both editable) and, for H₂O, the H–O–H angle —
+    the *starting* geometry of an optimisation; *Experimental geometry* restores 0.74144 Å (H₂),
+    1.5949 Å (LiH), 0.9572 Å and 104.52° (H₂O); after an optimisation the optimised values are
+    shown with **Use optimised geometry**, which copies them into the inputs;
   - the **method** — HF, CCSD, CCSD(T), CCSDT, CCSDTQ or Full CI (a menu, in this order) — and
     the **basis set** (aug-cc-pVDZ … aug-cc-pV5Z, aug-cc-pCVDZ … aug-cc-pCV5Z);
+  - job 5: the method and basis set of the single point; frequency jobs: temperature (K) and
+    pressure (Pa; buttons for 1 atm and 1 bar); optimisations: normal or tight convergence and
+    the maximum number of steps;
   - *Size of the calculation*, updated as you type: basis functions per atom, two-electron
     integrals (kept in memory or integral-direct), coupled-cluster amplitudes and memory, Full CI
-    determinants and memory, estimated time.
+    determinants and memory, and for jobs each step — how it is computed (analytic, or numerical
+    with the number of energies or gradients, in orange) and its time — and the estimated time of
+    the whole job.
     Notes (e.g. H takes aug-cc-pVXZ in the core-valence sets) in grey, warnings in orange, and a
     red explanation when the calculation is not possible (then **Run** is disabled); the run bar and,
     before the first result, the detail area repeat the refusal or the long-calculation warning.
@@ -43,34 +64,70 @@ Silicon and Intel Macs. The same calculations run in the terminal on Linux and m
   For HeH⁺: R in Å and bohr, Slater exponents ζ(He) and ζ(H), STO-1G/2G/3G, the exact-erf option;
   *Reset to Szabo–Ostlund defaults* restores R = 1.4632 bohr, ζ = 2.0925 / 1.24, STO-3G. Below:
   the appearance (System / Light / Dark).
-- **Run** (⌘R) calculates on all processor cores. A calculation estimated to take longer than
-  30 s asks for confirmation first; while it runs, the sidebar shows the progress (SCF iteration,
-  integral transformation, coupled-cluster iteration with energy and largest amplitude change,
-  progress of the (T) correction, Davidson iteration with energy and residual) and the elapsed time, and
-  **Cancel** (⌘.) stops it.
-- **Tabs**: *Summary* (energies, geometry, basis set per atom, convergence, timings),
-  *Hartree–Fock* (energy components and virial ratio, orbital energies, SCF iterations; for HeH⁺
-  also the integrals and the S/H/F/C/P matrices), *CC* (coupled cluster: energies, (T) correction,
-  T1 diagnostic, amplitude counts and norms, largest amplitudes, convergence of the iterations),
-  *Full CI* (energies, ⟨S²⟩, leading determinants,
-  natural-orbital occupations, Davidson iterations; for HeH⁺ the CI vector, singlet weights and all
-  states), *Potential curve* (bond-length scan with a selectable step in Å — H₂O as a symmetric
-  stretch — with the RHF minimum and that of the selected correlated method; long scans ask for
-  confirmation and can be stopped) and *Report* (the complete text report); *View ▸ Summary …
-  Report* (⌘1 … ⌘6) switches tabs.
-- **Menus**: *File ▸ Export Results as Text…* (⇧⌘E) saves a `.txt` file with the summary, the full
-  calculation report (every SCF iteration, the coupled-cluster or Full CI section) and, after a
-  scan, the potential-curve
-  table; *File ▸ Export Results as JSON…* (⌥⇧⌘E) saves the same results as JSON;
-  *Edit ▸ Copy Summary as Text* (⇧⌘C) copies the short summary.
+- **Run** (⌘R) calculates on all processor cores. A job estimated to take longer than 30 s asks
+  for confirmation first; while it runs, the sidebar shows one progress line (for example
+  "Optimisation step 4 · E = -76.0418435426 E_h · max force 1.10e-04", "Hessian: displacement 3
+  of 6 (S2 +)", "Lambda iteration 7 · max change 3.1e-06", SCF, coupled-cluster and Davidson
+  iterations) and the elapsed time, and **Cancel** (⌘.) stops it (the output file says so).
+- **Tabs** (six, so that they fit next to the sidebar at the minimum window width of 1000 pt):
+  - *Summary*: energies, the job (final energy, optimised parameters, wavenumbers, ZPE, H, G, S),
+    geometry, basis set per atom, convergence, timings;
+  - *Methods*, with the pages *Hartree–Fock* (energy components and virial ratio, orbital
+    energies, SCF iterations; for HeH⁺ also the integrals and the S/H/F/C/P matrices), *Coupled
+    cluster* (energies, (T) correction, T1 diagnostic, amplitude counts and norms, largest
+    amplitudes, convergence) and *Full CI* (energies, ⟨S²⟩, leading determinants, natural-orbital
+    occupations, Davidson iterations; for HeH⁺ the CI vector, singlet weights and all states);
+  - *Optimisation*: start and optimised parameters with their change, whether H₂O kept C₂ᵥ, the
+    gradient method, the steps table (energy, ΔE, maximum and RMS force and step, converged), the
+    energy and maximum-force charts (logarithmic, with the threshold) and, for the step you click,
+    its geometry, internal coordinates (value, force, step) and convergence table; **Use optimised
+    geometry as input**;
+  - *Frequencies*, with the pages *Frequencies* (how the Hessian was computed — analytic, or
+    numerical with the displaced coordinates and the number of gradients or energies —, isotopes,
+    the table of modes with symmetry, wavenumber (imaginary in red), reduced mass, force constant
+    and IR intensity, an animated drawing of the selected mode and the IR stick spectrum) and
+    *Thermochemistry* (ZPE and the thermal corrections to U, H, A, G in Eₕ, kcal/mol and kJ/mol;
+    E + ZPE, U, H, A, G; E, C_V and S by contribution in kcal/mol, cal/(mol K) and J/(mol K);
+    moments of inertia, rotational constants and temperatures, vibrational temperatures);
+  - *Curve*: the potential-curve scan (single-point energies whatever the job; a selectable step
+    in Å — H₂O as a symmetric stretch — with the RHF minimum and that of the selected correlated
+    method; long scans ask for confirmation and can be stopped);
+  - *Output*: the output file, streamed while the job runs (it follows the end while *Follow
+    output* is on), selectable, with a search field (Return: next match; arrows: next and
+    previous); for HeH⁺ the FORTRAN-style report.
+
+  *View* switches tabs and pages: Summary ⌘1, Hartree–Fock ⌘2, Coupled Cluster ⌘3, Full CI ⌘4,
+  Optimisation ⌘5, Frequencies ⌘6, Thermochemistry ⌘7, Potential Curve ⌘8, Output ⌘9.
+- **Menus**: *File ▸ Export Results as Text…* (⇧⌘E) saves, for H₂, LiH and H₂O, the output file
+  of the job — exactly the text of the *Output* tab and of `psilab` — and for HeH⁺ the summary, the
+  FORTRAN-style report and, after a scan, the potential-curve table; *File ▸ Export Results as
+  JSON…* (⌥⇧⌘E) saves the results as JSON; *File ▸ Export Potential Curve as Text…* saves the scan
+  table with its minima; *Edit ▸ Copy Summary as Text* (⇧⌘C) copies the short summary.
 - **Build from source**: see [`app/SETUP.md`](app/SETUP.md) (Xcode 26, or XcodeGen with
   `xcode/project.yml`).
 
 ## Versions
 
+### 5.0
+Geometry optimisation, harmonic frequencies, IR intensities and thermochemistry, five job types,
+analytic gradients (RHF, CCSD, CCSD(T), Full CI) and the analytic RHF Hessian, and a complete
+output file written while the job runs — see
+[Version 5.0 (next version)](#version-50-next-version) at the end of this file.
+
 ### 4.0
-Coupled cluster (CCSD, CCSD(T), CCSDT, CCSDTQ) and the method menu HF … Full CI — see
-[Version 4.0 (next version)](#version-40-next-version) at the end of this file.
+- **Coupled cluster**: CCSD, CCSD(T), CCSDT and CCSDTQ for H₂, LiH and H₂O, all electrons
+  correlated, on the RHF orbitals; the method menu offers HF, CCSD, CCSD(T), CCSDT, CCSDTQ and
+  Full CI. CCSD and CCSD(T): closed-shell, spin-adapted equations with the (vv|vv) ladder over AO
+  integrals (H₂O CCSD(T) up to aug-cc-pCV5Z); CCSDT and CCSDTQ: a general-order spin-orbital
+  engine whose 183 diagrams are generated and checked by `backend/tools/cc_diagrams.py`.
+- Verified: CCSD and CCSD(T) agree with PySCF within 3e-10 Eₕ (H₂, LiH and H₂O, seven cases);
+  CCSD, CCSDT and CCSDTQ agree with brute-force coupled cluster in the determinant space to 1e-12;
+  CCSDTQ reproduces Full CI for LiH (four electrons) and every method reproduces Full CI for H₂.
+- Estimates of amplitudes, memory and time; refusals above the memory limit (60 % of the RAM in
+  the app) or three days; a *CC* tab; potential curves with any method; Accelerate in the app.
+- Terminal version: `method = HF | CCSD | CCSD(T) | CCSDT | CCSDTQ | FCI`. The energies of all
+  methods for H₂, LiH and H₂O/aug-cc-pVDZ are listed under
+  [Coupled cluster (version 4.0)](#coupled-cluster-version-40).
 
 ### 3.0
 - **H₂, LiH and H₂O** in eight correlation-consistent basis sets (aug-cc-pVXZ, aug-cc-pCVXZ,
@@ -1032,31 +1089,94 @@ XcodeGen project spec in `xcode/project.yml`. See [`app/SETUP.md`](app/SETUP.md)
   Xcode), checks that the basis-set files are inside the bundle, runs a UI smoke test (launch, all
   tabs, potential-curve scans, menus, light and dark appearance; H₂O RHF, LiH Full CI, an H₂ curve,
   the refused Full CI of H₂O, a long-calculation warning, H₂O CCSD(T), the open method menu, LiH
-  CCSDT and the refused CCSDTQ of H₂O/aug-cc-pVTZ, selected with launch arguments
-  `-psilabMolecule`, `-psilabBasis`, `-psilabMethod`; screenshots) and publishes the **ΨLab-app**
-  download.
+  CCSDT and the refused CCSDTQ of H₂O/aug-cc-pVTZ; for 5.0 the open job menu, an H₂O RHF
+  optimisation, LiH CCSD(T) frequencies and thermochemistry, H₂O optimisation + frequencies with
+  a CCSD(T)/aug-cc-pVTZ single point, the Output tab while a job runs, Cancel and the refused
+  CCSDTQ frequencies of H₂O, selected with launch arguments `-psilabMolecule`, `-psilabBasis`,
+  `-psilabMethod`, `-psilabJob`, `-psilabSPMethod`, `-psilabSPBasis`, `-psilabR` (Å),
+  `-psilabAngle`, `-psilabTab`, `-psilabAutoRun`; screenshots on the runner's 1024-pt-wide screen,
+  where the window has its minimum width of 1000 pt) and publishes the **ΨLab-app** download.
 
-## Version 4.0 (next version)
+## Version 5.0 (next version)
 
-ΨLab 4.0 is the next version of the application, after 3.0. It adds coupled-cluster methods
-for H₂, LiH and H₂O; HeH⁺ (Szabo–Ostlund) is unchanged.
+ΨLab 5.0 is the next version of the application, after 4.0. It adds geometry optimisation,
+harmonic frequencies, IR intensities and thermochemistry for H₂, LiH and H₂O, five job types and a
+complete output file; HeH⁺ (Szabo–Ostlund) is unchanged (its Hartree–Fock text output is still
+identical to `reference/hartree_fock_sto3g.py`).
 
-- **Coupled cluster**: CCSD, CCSD(T), CCSDT and CCSDTQ for H₂, LiH and H₂O, all electrons
-  correlated, on the RHF orbitals. The method menu offers HF, CCSD, CCSD(T), CCSDT, CCSDTQ and
-  Full CI.
-  - CCSD and CCSD(T): closed-shell, spin-adapted equations; the (vv|vv) ladder runs over AO
-    integrals (in memory or recomputed), so H₂O CCSD(T) works up to aug-cc-pCV5Z.
-  - CCSDT and CCSDTQ: a general-order spin-orbital engine whose 183 diagrams are generated and
-    checked by `backend/tools/cc_diagrams.py`.
-- Verified: CCSD and CCSD(T) agree with PySCF within 3e-10 Eₕ (H₂, LiH and H₂O, seven cases);
-  CCSD, CCSDT and CCSDTQ agree with brute-force coupled cluster in the determinant space to 1e-12;
-  CCSDTQ reproduces Full CI for LiH (four electrons) and every method reproduces Full CI for H₂.
-- Estimates of amplitudes, memory and time; refusals above the memory limit (60 % of the RAM in
-  the app) or three days, warnings for long calculations, notes where a method is exact.
-- New *CC* (coupled cluster) tab; potential curves with any method; matrix products through Apple's
-  Accelerate in the app.
-- Terminal version: `method = HF | CCSD | CCSD(T) | CCSDT | CCSDTQ | FCI`.
-- Usage: choose the method in the sidebar's **Method** menu (HF, CCSD, CCSD(T), CCSDT, CCSDTQ,
-  Full CI) and press **Run**; the results are in the *Summary* and *CC* (coupled cluster) tabs, the
-  energies of all methods for H₂, LiH and H₂O/aug-cc-pVDZ are listed under
-  [Coupled cluster (version 4.0)](#coupled-cluster-version-40).
+**Job types** (app: the sidebar's *Job* menu; `psilab`: `job = …`; C API: `"job"`):
+1 *energy*; 2 *opt* (geometry optimisation); 3 *freq* (frequencies and thermochemistry at the
+input geometry, with a warning if it is not stationary); 4 *opt+freq* (frequencies at the
+optimised geometry); 5 *opt+freq+sp* (then a single point with `sp_method` / `sp_basis`, final
+U, H, G, A = single-point energy + thermal corrections). Jobs 4 and 5 stop with a message if the
+optimisation does not converge. Every step prints the geometry it uses.
+
+**What is analytic and what is numerical**
+
+| Method | Gradient | Hessian | Dipole derivatives (IR) |
+|---|---|---|---|
+| HF (RHF) | analytic (derivative integrals, energy-weighted density) | analytic (second-derivative integrals, CPHF) | analytic (CPHF) |
+| CCSD, CCSD(T) | analytic (Λ equations, relaxed densities, Z-vector) | central differences of analytic gradients along symmetry-adapted internal coordinates (H₂O 6, diatomics 2 gradients) | relaxed dipoles of those gradients |
+| Full CI | analytic (relaxed densities, Z-vector) | as CCSD(T) | as CCSD(T) |
+| CCSDT, CCSDTQ | numerical (central differences of energies along internal coordinates: H₂O 4, diatomics 2 energies) | second differences of energies (H₂O 9, diatomics 2) | finite fields μ = −dE/dF (H₂O 10, LiH 4 more energies) |
+
+Correlated methods also differentiate numerically when near-linear dependencies were removed from
+the basis or the analytic gradient would not fit into the memory limit, and RHF uses numerical
+second derivatives of its analytic gradients then; the output file, the app and the JSON say
+which was used and why. CCSDTQ optimisations and frequencies of H₂O are refused (hours per energy
+and more than 5 GB); a single point with CCSDTQ in job 5 remains possible where the energy is.
+
+**Verification** (each stage has its own test program, run by `ctest` and in CI; references from
+PySCF 2.15 and geomeTRIC by the scripts in `reference/`):
+
+| Stage | What | Result |
+|---|---|---|
+| 1 | first and second derivative integrals vs finite differences | 7e-10 relative (first); S 1e-11, h 2e-9, ERI 5e-9 (second) |
+| 1 | RHF gradient vs finite differences / PySCF (aug-cc-pVDZ … aug-cc-pV5Z) | 2e-10 / 1.2e-10 Eₕ/bohr |
+| 1 | RHF Hessian vs PySCF / finite differences; dipole derivatives | 6e-10 / 1e-10 Eₕ/bohr²; 5e-10 e |
+| 2 | CCSD, CCSD(T), Full CI gradients vs finite differences | ≤ 1.7e-10 Eₕ/bohr |
+| 2 | vs PySCF (`grad.ccsd`, `grad.ccsd_t`, CASCI) | ≤ 7.5e-10 (CC), 4.9e-9 (Full CI) |
+| 3 | optimised geometries vs PySCF + geomeTRIC (8 cases) | ≤ 8e-6 Å, 6e-4°, 1e-10 Eₕ |
+| 4 | RHF wavenumbers vs PySCF analytic Hessian | ≤ 2e-3 cm⁻¹ |
+| 4 | thermochemistry vs the formulas evaluated by hand (CODATA 2018) / PySCF `thermo` | 1e-9 Eₕ, 5e-5 J/(mol K) / 3e-6 Eₕ |
+| 4 | numerical vs analytic Hessians; relaxed dipoles vs −dE/dF | ≤ 0.05 cm⁻¹; 1e-9 e bohr |
+| 5 | all job types through the C API vs PySCF; H₂: CCSD = CCSDT = CCSDTQ = Full CI; LiH: CCSDTQ = Full CI (*full* job) | 2e-5 Å, 0.01–0.05 cm⁻¹; 1.5e-9 Å (analytic), 7.4e-6 Å and 0.15 cm⁻¹ (numerical); 6e-12 Eₕ and 2.4e-3 cm⁻¹ |
+| 5 | streamed output = final output file; cancellation; refusals; estimates | identical; < 1 ms during an optimisation step |
+
+**Comparison with experiment.** Harmonic constants from optimisations and frequencies with the
+largest feasible calculations (all electrons correlated):
+
+| Quantity | ΨLab | Experiment |
+|---|---|---|
+| H₂ rₑ, Full CI/aug-cc-pV5Z | 0.741602 Å | 0.74144 Å |
+| H₂ ωₑ, Full CI/aug-cc-pV5Z | 4403.42 cm⁻¹ | 4401.21 cm⁻¹ |
+| LiH rₑ, Full CI/aug-cc-pCVTZ | 1.601196 Å | 1.5949 Å |
+| LiH ωₑ, Full CI/aug-cc-pCVTZ | 1393.36 cm⁻¹ | 1405.65 cm⁻¹ |
+| H₂O rₑ, θₑ, CCSD(T)/aug-cc-pVTZ | 0.958852 Å, 104.342° | 0.95782 Å, 104.48° |
+| H₂O ω₁ (A₁), ω₂ (A₁), ω₃ (B₂), CCSD(T)/aug-cc-pVTZ | 3838.53, 1641.38, 3942.48 cm⁻¹ | 3832.2, 1648.5, 3942.5 cm⁻¹ |
+| same, CCSD(T)/aug-cc-pCVTZ | 3813.59, 1645.52, 3920.97 cm⁻¹ (rₑ 0.960573 Å, θₑ 104.289°) | |
+| S°(H₂O, 298.15 K, 1 bar), CCSD(T)/aug-cc-pVTZ | 188.69 J/(mol K) | 188.83 J/(mol K) |
+
+Sources: H₂O harmonic frequencies from the NIST Computational Chemistry Comparison and Benchmark
+Database (experimental data); H₂O equilibrium structure from Császár et al., J. Chem. Phys. 122,
+214305 (2005) (rₑ = 0.95782 Å, θₑ = 104.48(5)°; the default geometry of ΨLab, 0.9572 Å and
+104.52°, is the older, widely quoted value); S°(H₂O) from the NIST-JANAF tables (188.834) and the
+CODATA key values for thermodynamics (188.835 ± 0.010); LiH and H₂ spectroscopic constants from
+Huber & Herzberg, *Constants of Diatomic Molecules* (1979). The H₂ values (Full CI in a nearly
+complete basis) differ by 2 cm⁻¹ and 2e-4 Å — what the Born–Oppenheimer approximation leaves
+out. For LiH and H₂O the differences are those of the basis sets (aug-cc-pCVTZ and aug-cc-pVTZ are
+not complete; for H₂O also the missing core-correlating functions in aug-cc-pVTZ) and, for
+CCSD(T), of the method. The rigid-rotor, harmonic-oscillator entropy of H₂O is 0.14 J/(mol K)
+below the tabulated value, the size of the anharmonic and rotation–vibration contributions it
+leaves out.
+
+**Not in this version**: analytic gradients of CCSDT and CCSDTQ (they need general-order Λ
+equations; the gradients are numerical), analytic Hessians of the correlated methods (numerical
+from analytic gradients), analytic correlated gradients with removed near-linear dependencies
+(numerical then), transition-state searches, anharmonic frequencies, open-shell molecules.
+
+**Usage**: choose the job in the sidebar's **Job** menu, the method and basis set (and for job 5
+the single-point method and basis set), set the starting geometry, temperature, pressure and
+convergence, and press **Run**; the *Optimisation*, *Frequencies* and *Output* tabs fill as the
+job runs. In the terminal: `job = opt+freq` (see [Terminal version](#terminal-version-linux));
+`tail -f` follows the output file.
