@@ -29,6 +29,9 @@ add_library(macqc STATIC
   backend/src/gemm.cpp
   backend/src/mo_integrals.cpp
   backend/src/ci.cpp
+  backend/src/cc_general.cpp
+  backend/src/cc_closed_shell.cpp
+  backend/src/cc_estimate.cpp
   backend/src/job.cpp
   backend/src/calculation.cpp
   backend/src/api.cpp)
@@ -78,6 +81,15 @@ target_compile_definitions(macqc_fci_tests PRIVATE
 add_test(NAME macqc_fci_tests COMMAND macqc_fci_tests)
 set_tests_properties(macqc_fci_tests PROPERTIES
   ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 7200)
+# ΨLab 4.0: coupled cluster (brute-force references, PySCF, Full CI).
+add_executable(macqc_cc_tests backend/tests/test_cc.cpp)
+target_link_libraries(macqc_cc_tests PRIVATE macqc)
+target_include_directories(macqc_cc_tests PRIVATE third_party)
+target_compile_definitions(macqc_cc_tests PRIVATE
+  MACQC_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/backend/tests/data")
+add_test(NAME macqc_cc_tests COMMAND macqc_cc_tests)
+set_tests_properties(macqc_cc_tests PROPERTIES
+  ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 3600)
 add_test(NAME cli_smoke COMMAND macqc_cli --print 1)
 add_test(NAME cli_json COMMAND macqc_cli --json --n 2)
 add_test(NAME cli_invalid COMMAND macqc_cli --R -1)

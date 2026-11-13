@@ -43,16 +43,17 @@ Use *File ▸ Add Files to "PsiLab"…* (or drag from Finder). Always: **"Copy i
 
 | What | Files | Target membership |
 | --- | --- | --- |
-| App | everything in `app/MacQC/` (14 `.swift` files, `MacQC-Bridging-Header.h` and `Assets.xcassets`) | `.swift`: PsiLab; header: none needed |
-| Backend sources | `backend/src/linalg.cpp`, `integrals.cpp`, `report.cpp`, `scf.cpp`, `fci.cpp`, `molecule.cpp`, `basis.cpp`, `gto_integrals.cpp`, `rhf.cpp`, `molecular.cpp`, `gemm.cpp`, `mo_integrals.cpp`, `ci.cpp`, `job.cpp`, `calculation.cpp`, `api.cpp` | PsiLab |
+| App | everything in `app/MacQC/` (15 `.swift` files, `MacQC-Bridging-Header.h` and `Assets.xcassets`) | `.swift`: PsiLab; header: none needed |
+| Backend sources | `backend/src/linalg.cpp`, `integrals.cpp`, `report.cpp`, `scf.cpp`, `fci.cpp`, `molecule.cpp`, `basis.cpp`, `gto_integrals.cpp`, `rhf.cpp`, `molecular.cpp`, `gemm.cpp`, `mo_integrals.cpp`, `ci.cpp`, `cc_general.cpp`, `cc_closed_shell.cpp`, `cc_estimate.cpp`, `job.cpp`, `calculation.cpp`, `api.cpp` | PsiLab |
 | Basis sets | the folder `basis/` — add it as a **folder reference** ("Create folder references"), so it is copied as `Contents/Resources/basis` | PsiLab (Copy Bundle Resources) |
-| Backend headers | `backend/include/macqc/*.h` | (headers only) |
+| Backend headers | `backend/include/macqc/*.h` and `cc_diagrams.inc` (the generated diagram table) | (headers only) |
+| Framework | `Accelerate.framework` (*General ▸ Frameworks and Libraries*, "Do Not Embed") | PsiLab |
 | JSON library | `third_party/nlohmann/json.hpp` | (header only) |
 
 **Do not add** `backend/cli/main.cpp`, anything in `backend/tests/`, or `reference/` (the CLI and
 the test program have their own `main`, which would clash with the app's).
 
-Check *PsiLab target ▸ Build Phases ▸ Compile Sources*: exactly 14 Swift files + 16 C++ files, and
+Check *PsiLab target ▸ Build Phases ▸ Compile Sources*: exactly 15 Swift files + 19 C++ files, and
 *Copy Bundle Resources*: `Assets.xcassets` and the blue folder `basis`.
 
 ## 3. Build settings
@@ -69,6 +70,7 @@ Select the project ▸ target **PsiLab** ▸ *Build Settings* ▸ "All" and "Com
 | C++ Language Dialect (`CLANG_CXX_LANGUAGE_STANDARD`) | **C++17** (`c++17`; GNU++17 also works) |
 | C++ Standard Library (`CLANG_CXX_LIBRARY`) | libc++ (default) |
 | Other C++ Flags (`OTHER_CPLUSPLUSFLAGS`) | `-ffp-contract=off` (keeps results bit-identical to the reference; see backend README) |
+| Preprocessor Macros (`GCC_PREPROCESSOR_DEFINITIONS`) | add `MACQC_USE_ACCELERATE=1` (matrix products with Apple's BLAS) |
 | Architectures (`ARCHS`) | Standard Architectures (Apple Silicon, Intel) – the default |
 | Build Active Architecture Only, Release | No (for a universal release build) |
 

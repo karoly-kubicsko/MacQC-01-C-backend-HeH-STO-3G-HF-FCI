@@ -34,12 +34,13 @@ void usage(const char* prog) {
                  "HeH+ (Hartree-Fock and Full CI, Szabo-Ostlund):\n"
                  "  basis = STO-1G | STO-2G | STO-3G      zeta_He = <number>   zeta_H = <number>\n"
                  "  exact_erf = yes | no   scan = yes | no   scan_step = <bohr>  (R = 0.8 ... 5.0 bohr)\n"
-                 "H2, LiH, H2O (restricted Hartree-Fock; Full CI for H2 and LiH):\n"
+                 "H2, LiH, H2O (restricted Hartree-Fock, coupled cluster, Full CI for H2 and LiH):\n"
                  "  basis = aug-cc-pVDZ | aug-cc-pVTZ | aug-cc-pVQZ | aug-cc-pV5Z |\n"
                  "          aug-cc-pCVDZ | aug-cc-pCVTZ | aug-cc-pCVQZ | aug-cc-pCV5Z\n"
-                 "  angle = <degrees> (H2O)   method = RHF | FCI   threads = <n>\n"
+                 "  angle = <degrees> (H2O)   threads = <n>\n"
+                 "  method = HF | CCSD | CCSD(T) | CCSDT | CCSDTQ | FCI   (all electrons correlated)\n"
                  "  memory = <MB> (two-electron integrals kept in memory up to this size)\n"
-                 "  fci_memory = <MB> (Full CI memory limit, default 4096)\n"
+                 "  fci_memory = <MB> (memory limit of Full CI and coupled cluster, default 4096)\n"
                  "  basis_dir = <folder with the .gbs files> (or environment variable PSILAB_BASIS_DIR)\n",
                  prog, prog, prog, prog, prog);
 }

@@ -123,6 +123,24 @@ json molecular_json(const MolecularResult& m) {
     } else {
         est["fci"] = nullptr;
     }
+    if (e.cc) {
+        const CCSize& c = *e.cc;
+        est["coupledCluster"] = {{"method", c.method},
+                                 {"engine", c.engine},
+                                 {"occupied", c.occupied},
+                                 {"virtuals", c.virtuals},
+                                 {"amplitudes", c.amplitudes},
+                                 {"memoryMB", c.memory_bytes / (1024.0 * 1024.0)},
+                                 {"ladderIntegralsStored", c.ladder_stored},
+                                 {"iterations", c.iterations},
+                                 {"iterationSeconds", c.iteration_seconds},
+                                 {"triplesSeconds", c.triples_seconds},
+                                 {"seconds", c.seconds},
+                                 {"feasible", c.feasible},
+                                 {"reason", c.reason.empty() ? json(nullptr) : json(c.reason)}};
+    } else {
+        est["coupledCluster"] = nullptr;
+    }
 
     json out;
     out["molecule"] = mol;
@@ -165,6 +183,47 @@ json molecular_json(const MolecularResult& m) {
         out["fullCI"] = fc;
     } else {
         out["fullCI"] = nullptr;
+    }
+    if (m.cc) {
+        const CCResult& c = *m.cc;
+        json cj;
+        cj["method"] = c.method;
+        cj["engine"] = c.engine;
+        cj["converged"] = c.converged;
+        cj["iterations"] = c.iterations;
+        cj["occupied"] = c.occupied;
+        cj["virtuals"] = c.virtuals;
+        cj["referenceEnergy"] = c.reference_energy;
+        cj["correlationEnergy"] = c.correlation_energy;
+        cj["ccEnergy"] = c.cc_energy;
+        cj["triplesCorrection"] = c.has_triples ? json(c.triples_correction) : json(nullptr);
+        cj["totalEnergy"] = c.total_energy;
+        cj["t1Diagnostic"] = c.t1_diagnostic;
+        cj["amplitudeCounts"] = c.amplitude_counts;
+        cj["amplitudeNorms"] = c.rank_norms;
+        json lead = json::array();
+        for (const auto& a : c.leading)
+            lead.push_back({{"value", a.value},
+                            {"rank", a.rank},
+                            {"occupied", a.occupied},
+                            {"virtuals", a.virtuals},
+                            {"spins", a.spins}});
+        cj["leadingAmplitudes"] = lead;
+        json hist = json::array();
+        for (const auto& it : c.history)
+            hist.push_back({{"iteration", it.iteration},
+                            {"totalEnergy", it.energy},
+                            {"correlationEnergy", it.correlation},
+                            {"deltaE", it.delta_e},
+                            {"residual", it.residual}});
+        cj["history"] = hist;
+        cj["ladder"] = c.ladder.empty() ? json(nullptr) : json(c.ladder);
+        cj["transformSeconds"] = c.transform_seconds;
+        cj["ccSeconds"] = c.cc_seconds;
+        cj["triplesSeconds"] = c.has_triples ? json(c.triples_seconds) : json(nullptr);
+        out["coupledCluster"] = cj;
+    } else {
+        out["coupledCluster"] = nullptr;
     }
     if (m.rhf) {
         const RHFResult& h = *m.rhf;
@@ -258,7 +317,7 @@ std::string output_to_json(const Output& out, int indent) {
     j["error"] = out.error.empty() ? json(nullptr) : json(out.error);
     if (!is_heh_input(out.input) && !canonical_molecule_name(out.input.molecule).empty()) {
         // General molecules: {"input","error","molecule","basis","estimate","notes",
-        // "warnings","refusal","rhf","fullCI","hf":null,"fci":null,"report"}.
+        // "warnings","refusal","rhf","fullCI","coupledCluster","hf":null,"fci":null,"report"}.
         if (out.molecular) {
             const json m = molecular_json(*out.molecular);
             for (auto it = m.begin(); it != m.end(); ++it) j[it.key()] = it.value();
@@ -271,6 +330,7 @@ std::string output_to_json(const Output& out, int indent) {
             j["refusal"] = nullptr;
             j["rhf"] = nullptr;
             j["fullCI"] = nullptr;
+            j["coupledCluster"] = nullptr;
         }
         j["hf"] = nullptr;
         j["fci"] = nullptr;

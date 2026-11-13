@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <stdexcept>
 
+#include "macqc/cc.h"
 #include "macqc/gto_integrals.h"
 #include "macqc/mo_integrals.h"
 
@@ -132,7 +133,76 @@ std::string fci_section(const MolecularResult& r, int level) {
     return s;
 }
 
+std::string cc_section(const MolecularResult& r, int level) {
+    const CCResult& c = *r.cc;
+    std::string s = "\nCoupled cluster " + c.method + ", all electrons correlated\n";
+    s += format("    %d occupied and %d virtual orbitals (%d electrons); %s implementation\n", c.occupied, c.virtuals,
+                2 * c.occupied, c.engine.c_str());
+    std::string counts;
+    const char* names[] = {"", "T1", "T2", "T3", "T4"};
+    for (std::size_t k = 1; k < c.amplitude_counts.size() && k < 5; ++k)
+        counts += format("%s%s %s", counts.empty() ? "" : ", ", names[k], thousands_d(c.amplitude_counts[k]).c_str());
+    s += "    amplitudes: " + counts +
+         (c.engine.find("spin-orbital") != std::string::npos ? " (distinct spin-orbital sets)\n" : " (spatial)\n");
+    if (!c.ladder.empty()) s += "    (vv|vv) ladder: " + c.ladder + "\n";
+    s += format("    integral transformation: %.2f s; Jacobi updates with DIIS, converged when\n", c.transform_seconds);
+    s += format("    max |t_new - t| < %.1e and |dE| < %.1e E_h\n", c.amplitude_tol, c.energy_tol);
+    if (level >= 2) {
+        s += "    iter        total energy (E_h)     correlation (E_h)        dE (E_h)   max |dt|\n";
+        for (const auto& it : c.history)
+            s += format("    %4d  %24.12f  %20.12f  %14.3e  %9.2e\n", it.iteration, it.energy, it.correlation, it.delta_e,
+                        it.residual);
+    }
+    s += c.converged ? format("    converged in %d iterations (%.2f s)\n", c.iterations, c.cc_seconds)
+                     : format("    NOT converged after %d iterations\n", c.iterations);
+    if (c.has_triples) s += format("    (T) correction: %.2f s\n", c.triples_seconds);
+    s += "\n" + c.method + " energies (E_h)\n";
+    s += format("    RHF energy                %20.10f\n", c.reference_energy);
+    const std::string base = c.has_triples ? std::string("CCSD") : c.method;
+    s += format("    %-26s%20.10f\n", (base + " correlation energy").c_str(), c.correlation_energy);
+    s += format("    %-26s%20.10f\n", (base + " energy").c_str(), c.cc_energy);
+    if (c.has_triples) {
+        s += format("    (T) correction            %20.10f\n", c.triples_correction);
+        s += format("    CCSD(T) correlation energy%20.10f\n", c.correlation_energy + c.triples_correction);
+        s += format("    CCSD(T) energy            %20.10f\n", c.total_energy);
+    }
+    s += format("    T1 diagnostic             %20.6f\n", c.t1_diagnostic);
+    std::string norms;
+    for (std::size_t k = 1; k < c.rank_norms.size() && k < 5; ++k)
+        norms += format("%s|%s| = %.6f", norms.empty() ? "" : ", ", names[k], c.rank_norms[k]);
+    if (!norms.empty()) s += "    amplitude norms: " + norms + "\n";
+    s += "\nLargest amplitudes (occupied -> virtual MOs, spin a = alpha, b = beta)\n";
+    for (const auto& a : c.leading)
+        s += format("    T%d  %+12.8f   %-12s -> %-12s %s\n", a.rank, a.value, orbital_list(a.occupied).c_str(),
+                    orbital_list(a.virtuals).c_str(), a.spins.c_str());
+    return s;
+}
+
 }  // namespace
+
+std::string canonical_method_name(const std::string& method) {
+    std::string m;
+    for (char c : method)
+        if (c != '-' && c != ' ' && c != '_') m += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+    if (m == "RHF" || m == "HF" || m == "SCF") return "RHF";
+    if (m == "CCSD") return "CCSD";
+    if (m == "CCSD(T)" || m == "CCSD[T]") return "CCSD(T)";
+    if (m == "CCSDT") return "CCSDT";
+    if (m == "CCSDTQ") return "CCSDTQ";
+    if (m == "FCI" || m == "FULLCI") return "FCI";
+    return "";
+}
+
+bool coupled_cluster_method(const std::string& canonical, CCMethod* method) {
+    CCMethod mm;
+    if (canonical == "CCSD") mm = CCMethod::CCSD;
+    else if (canonical == "CCSD(T)") mm = CCMethod::CCSD_T;
+    else if (canonical == "CCSDT") mm = CCMethod::CCSDT;
+    else if (canonical == "CCSDTQ") mm = CCMethod::CCSDTQ;
+    else return false;
+    if (method) *method = mm;
+    return true;
+}
 
 std::string validate_molecular(const MolecularInput& in) {
     const std::string m = canonical_molecule_name(in.molecule);
@@ -142,12 +212,10 @@ std::string validate_molecular(const MolecularInput& in) {
         for (const auto& b : supported_basis_sets()) list += (list.empty() ? "" : ", ") + b;
         return "unknown basis set '" + in.basis + "' (available: " + list + ")";
     }
-    std::string method;
-    for (char c : in.method)
-        if (c != '-' && c != ' ') method += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-    if (method != "RHF" && method != "HF" && method != "FCI" && method != "FULLCI")
-        return "method must be RHF or FCI";
-    if (!std::isfinite(in.fci_memory_mb) || in.fci_memory_mb < 64.0) return "fciMemoryMB must be at least 64";
+    if (canonical_method_name(in.method).empty())
+        return "method must be HF (RHF), CCSD, CCSD(T), CCSDT, CCSDTQ or FCI";
+    if (!std::isfinite(in.fci_memory_mb) || in.fci_memory_mb < 64.0)
+        return "fciMemoryMB (memory limit of Full CI and coupled cluster) must be at least 64";
     if (!std::isfinite(in.R) || in.R < 0.0) return "R must be a positive, finite number (bohr)";
     if (in.R > 0.0 && in.R < 0.3) return "R must be at least 0.3 bohr (0.16 \xC3\x85)";
     if (in.R > 50.0) return "R must be at most 50 bohr (26.5 \xC3\x85)";
@@ -212,12 +280,7 @@ MolecularResult prepare_molecular(const MolecularInput& input) {
     r.input = input;
     r.input.molecule = canonical_molecule_name(input.molecule);
     r.input.basis = canonical_basis_name(input.basis);
-    {
-        std::string m;
-        for (char c : input.method)
-            if (c != '-' && c != ' ') m += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-        r.input.method = (m == "FCI" || m == "FULLCI") ? "FCI" : "RHF";
-    }
+    r.input.method = canonical_method_name(input.method);
     if (!(r.input.R > 0.0)) r.input.R = default_bond_length(r.input.molecule);
     r.molecule = make_molecule(r.input.molecule, r.input.R, r.input.angle);
     r.basis = build_basis(r.molecule, r.input.basis, r.input.basis_directory);
@@ -258,6 +321,36 @@ MolecularResult prepare_molecular(const MolecularInput& input) {
                 e.fci->memory_bytes / (1024.0 * 1024.0 * 1024.0), human_seconds(e.total_seconds).c_str(), e.threads));
         return r;
     }
+    CCMethod ccm;
+    if (coupled_cluster_method(r.input.method, &ccm)) {
+        const int nel = r.molecule.electrons();
+        const double pass = estimate_rhf_seconds(r.basis, false, e.threads, 1);
+        e.cc = estimate_cc(ccm, nel / 2, r.basis.n_functions, r.basis.n_functions, static_cast<double>(e.unique_eris),
+                           pass, e.threads, r.input.fci_memory_mb, r.input.memory_mb);
+        e.total_seconds += e.cc->seconds;
+        const int rank = cc_max_rank(ccm);
+        if (nel == 2)
+            r.notes.push_back(ccm == CCMethod::CCSD ? "For two electrons CCSD is exact (identical to Full CI)."
+                              : ccm == CCMethod::CCSD_T
+                                  ? "For two electrons CCSD is exact (identical to Full CI); the (T) correction is zero."
+                                  : "For two electrons CCSD is exact (identical to Full CI); triple and quadruple "
+                                    "excitations vanish, so CCSDT and CCSDTQ give the CCSD energy.");
+        else if (nel == 4 && rank == 4)
+            r.notes.push_back("For four electrons CCSDTQ is exact (identical to Full CI).");
+        if (!e.cc->feasible) {
+            r.refusal = e.cc->reason;
+            if (rank >= 3) r.refusal += " Use a smaller basis set, or CCSD(T).";
+            else r.refusal += " Use a smaller basis set.";
+            return r;
+        }
+        if (e.total_seconds > kLongCalculationSeconds)
+            r.warnings.push_back(format(
+                "Long calculation: %s with %s amplitudes (%d occupied, %d virtual orbitals) after RHF; about %.1f GB "
+                "of memory. Estimated time %s on %d threads.",
+                e.cc->method.c_str(), thousands_d(e.cc->amplitudes).c_str(), e.cc->occupied, e.cc->virtuals,
+                e.cc->memory_bytes / (1024.0 * 1024.0 * 1024.0), human_seconds(e.total_seconds).c_str(), e.threads));
+        return r;
+    }
     if (e.rhf_seconds > kLongCalculationSeconds)
         r.warnings.push_back(format(
             "Long calculation: %d basis functions (up to %c functions); %s two-electron integrals %s. "
@@ -271,7 +364,8 @@ MolecularResult prepare_molecular(const MolecularInput& input) {
     return r;
 }
 
-void run_molecular(MolecularResult& r, const RHFProgress& progress, const FCIProgress& fci_progress) {
+void run_molecular(MolecularResult& r, const RHFProgress& progress, const FCIProgress& fci_progress,
+                   const CCProgress& cc_progress) {
     if (!r.refusal.empty()) throw std::runtime_error(r.refusal);
     RHFOptions opt;
     opt.max_iter = r.input.max_iter;
@@ -299,6 +393,36 @@ void run_molecular(MolecularResult& r, const RHFProgress& progress, const FCIPro
         if (!r.fci->converged)
             r.warnings.push_back(format("The Full CI (Davidson) did not converge in %d iterations.", r.fci->iterations));
     }
+    CCMethod ccm;
+    if (coupled_cluster_method(r.input.method, &ccm) && r.rhf->converged) {
+        CCOptions co;
+        co.threads = r.input.threads;
+        co.memory_limit_mb = r.input.fci_memory_mb;
+        co.eri_memory_mb = r.input.memory_mb;
+        const int nocc = r.rhf->n_occupied;
+        const auto t0 = std::chrono::steady_clock::now();
+        if (cc_max_rank(ccm) == 2) {
+            const CCIntegrals ints = cc_integrals_from_ao(r.basis, r.rhf->H, r.rhf->C, nocc, r.input.threads);
+            auto ladder = make_ao_ladder(r.basis, r.rhf->C, nocc, r.input.threads, r.input.memory_mb);
+            const double transform = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+            r.cc = run_ccsd_closed_shell(ints, *ladder, r.rhf->total_energy, ccm == CCMethod::CCSD_T, co, cc_progress);
+            r.cc->transform_seconds = transform;
+        } else {
+            const MOIntegrals mo = transform_to_mo(r.basis, r.rhf->H, r.rhf->C, r.input.threads);
+            const double transform = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+            r.cc = run_cc_spin_orbital(mo, nocc, cc_max_rank(ccm), r.rhf->nuclear_repulsion, co, cc_progress);
+            r.cc->transform_seconds = transform;
+            // Report against the SCF energy (the same determinant; equal to ~1e-10 E_h).
+            r.cc->reference_energy = r.rhf->total_energy;
+            r.cc->cc_energy = r.cc->reference_energy + r.cc->correlation_energy;
+            r.cc->total_energy = r.cc->cc_energy;
+        }
+        if (!r.cc->converged)
+            r.warnings.push_back(format("The %s iterations did not converge in %d iterations.", r.cc->method.c_str(),
+                                        r.cc->iterations));
+        if (ccm == CCMethod::CCSD_T && !r.cc->converged)
+            r.warnings.push_back("The (T) correction was not computed because CCSD did not converge.");
+    }
     r.report = molecular_report(r);
 }
 
@@ -309,7 +433,8 @@ std::string molecular_report(const MolecularResult& r) {
     const Molecule& mol = r.molecule;
     std::string s;
     s += std::string("\xCE\xA8Lab \xE2\x80\x93 restricted Hartree-Fock") +
-         (r.input.method == "FCI" ? " and Full CI" : "") + "\n" + rule + "\n";
+         (r.input.method == "FCI" ? " and Full CI" : (r.input.method == "RHF" ? "" : " and " + r.input.method)) + "\n" +
+         rule + "\n";
     s += format("Molecule        %s, %d electrons, closed shell (charge %d, singlet)\n", mol.name.c_str(),
                 mol.electrons(), mol.charge);
     if (mol.name == "H2O")
@@ -347,6 +472,13 @@ std::string molecular_report(const MolecularResult& r) {
                     f.alpha + f.beta, f.alpha, f.beta, f.orbitals, thousands_d(f.alpha_strings).c_str(),
                     thousands_d(f.beta_strings).c_str(), thousands_d(f.determinants).c_str(),
                     f.memory_bytes / (1024.0 * 1024.0), human_seconds(e.total_seconds).c_str());
+    }
+    if (e.cc) {
+        const CCSize& c = *e.cc;
+        s += format("    %s: %d occupied, %d virtual orbitals, %s amplitudes, about %.0f MB of memory,\n"
+                    "             estimated time %s\n",
+                    c.method.c_str(), c.occupied, c.virtuals, thousands_d(c.amplitudes).c_str(),
+                    c.memory_bytes / (1024.0 * 1024.0), human_seconds(e.total_seconds).c_str());
     }
     for (const auto& w : r.warnings) s += "Warning: " + w + "\n";
     if (!r.refusal.empty()) s += "NOT POSSIBLE: " + r.refusal + "\n";
@@ -391,6 +523,7 @@ std::string molecular_report(const MolecularResult& r) {
         s += format("    HOMO %.8f E_h, LUMO %.8f E_h, gap %.8f E_h\n", h.orbital_energies[nocc - 1],
                     h.orbital_energies[nocc], h.orbital_energies[nocc] - h.orbital_energies[nocc - 1]);
     if (r.fci) s += fci_section(r, level);
+    if (r.cc) s += cc_section(r, level);
     return s;
 }
 

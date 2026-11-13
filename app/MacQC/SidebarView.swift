@@ -139,7 +139,10 @@ struct SidebarView: View {
                     Text(choice.title).tag(choice)
                 }
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.menu)
+            Text(model.method.explanation + (model.method == .hf ? "" : " All electrons are correlated."))
+                .font(.caption)
+                .foregroundStyle(.secondary)
             Picker("Basis set", selection: $model.basis) {
                 ForEach(BasisSets.all, id: \.self) { name in
                     Text(name).tag(name)
@@ -261,6 +264,11 @@ struct EstimatePanel: View {
                         if f.feasible {
                             InfoRow("Full CI memory", Fmt.memory(f.memoryMB))
                         }
+                    }
+                    if let c = e.coupledCluster {
+                        InfoRow("\(MethodChoice.title(of: c.method)) amplitudes", Fmt.count(c.amplitudes))
+                        InfoRow("Orbitals (occ./virt.)", "\(c.occupied) / \(c.virtuals)")
+                        InfoRow("\(MethodChoice.title(of: c.method)) memory", Fmt.memory(c.memoryMB))
                     }
                     if model.refusal == nil {
                         InfoRow("Estimated time", Fmt.duration(e.totalSeconds) + " (\(e.threads) threads)")

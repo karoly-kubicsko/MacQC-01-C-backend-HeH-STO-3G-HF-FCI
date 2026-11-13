@@ -142,8 +142,7 @@ std::string summary_text(const macqc::Output& out) {
 std::string general_summary(const macqc::Output& out) {
     const macqc::MolecularResult& m = *out.molecular;
     std::vector<std::string> lines;
-    lines.push_back("\xCE\xA8Lab \xE2\x80\x93 " + m.molecule.name + ", " + (m.input.method == "FCI" ? "FCI" : "RHF") + "/" +
-                    m.basis.name);
+    lines.push_back("\xCE\xA8Lab \xE2\x80\x93 " + m.molecule.name + ", " + m.input.method + "/" + m.basis.name);
     if (m.molecule.name == "H2O")
         lines.push_back("R(O-H) = " + length_both(m.input.R, 4) + format(", angle H-O-H = %.2f deg", m.input.angle));
     else
@@ -182,6 +181,19 @@ std::string general_summary(const macqc::Output& out) {
         lines.push_back(format("  correlation energy:   %.10f E_h", f.correlation_energy));
         lines.push_back(format("  <S^2>:                %.6f", f.s2));
         lines.push_back(format("  RHF determinant:      |C_0|^2 = %.6f", f.hf_weight));
+    }
+    if (m.cc) {
+        const auto& c = *m.cc;
+        lines.push_back("");
+        lines.push_back("Coupled cluster " + c.method);
+        lines.push_back(format("  converged:            %s (%d iterations)", c.converged ? "yes" : "no", c.iterations));
+        if (c.has_triples) {
+            lines.push_back(format("  CCSD energy:          %.10f E_h", c.cc_energy));
+            lines.push_back(format("  (T) correction:       %.10f E_h", c.triples_correction));
+        }
+        lines.push_back(format("  total energy:         %.10f E_h", c.total_energy));
+        lines.push_back(format("  correlation energy:   %.10f E_h", c.total_energy - c.reference_energy));
+        lines.push_back(format("  T1 diagnostic:        %.6f", c.t1_diagnostic));
     }
     if (!m.refusal.empty()) lines.push_back("Not possible: " + m.refusal);
     for (const auto& w : m.warnings) lines.push_back("Warning: " + w);
@@ -295,13 +307,10 @@ Settings parse_input_text(const std::string& text) {
             std::string m;
             for (char c : lower(value))
                 if (c != '-' && c != ' ') m += c;
-            if (m == "rhf" || m == "hf" || m == "hartreefock") {
-                s.input.method = "RHF";
-            } else if (m == "fci" || m == "fullci") {
-                s.input.method = "FCI";
-            } else {
-                fail(ln, "method must be RHF or FCI, got '" + value + "'");
-            }
+            const std::string canonical = m == "hartreefock" ? "RHF" : macqc::canonical_method_name(value);
+            if (canonical.empty())
+                fail(ln, "method must be HF (RHF), CCSD, CCSD(T), CCSDT, CCSDTQ or FCI, got '" + value + "'");
+            s.input.method = canonical;
         } else if (k == "zeta_He") {
             s.input.zeta1 = parse_number(value, ln, e.key);
         } else if (k == "zeta_H") {

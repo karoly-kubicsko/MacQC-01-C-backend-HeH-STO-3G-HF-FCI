@@ -37,6 +37,9 @@ targets:
         type: folder
         buildPhase: resources
 
+    dependencies:
+      - sdk: Accelerate.framework
+
     entitlements:
       path: PsiLab.entitlements
       properties:
@@ -49,8 +52,8 @@ targets:
         PRODUCT_NAME: "ΨLab"
         PRODUCT_MODULE_NAME: PsiLab
         PRODUCT_BUNDLE_IDENTIFIER: org.psilab.PsiLab
-        MARKETING_VERSION: "3.0"
-        CURRENT_PROJECT_VERSION: "3"
+        MARKETING_VERSION: "4.0"
+        CURRENT_PROJECT_VERSION: "4"
         GENERATE_INFOPLIST_FILE: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_CFBundleDisplayName: "ΨLab"
@@ -66,6 +69,8 @@ targets:
         CLANG_CXX_LANGUAGE_STANDARD: c++17
         CLANG_CXX_LIBRARY: libc++
         OTHER_CPLUSPLUSFLAGS: "$(inherited) -ffp-contract=off"
+        # Matrix products (coupled cluster, Full CI, integral transformation) with Apple's BLAS.
+        GCC_PREPROCESSOR_DEFINITIONS: "$(inherited) MACQC_USE_ACCELERATE=1"
         # Ad-hoc signing: runs locally (Apple Silicon requires some signature).
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "-"

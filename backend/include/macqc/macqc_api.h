@@ -12,8 +12,10 @@
  *                               then the result has "error": "calculation cancelled";
  *   macqc_job_cancel(job)       requests cancellation (returns at once);
  *   macqc_job_progress(job, …)  current stage (0 idle, 1 integrals, 2 SCF, 3 integral
- *                               transformation, 4 Full CI, 5 done), iteration, total energy
- *                               (E_h) and residual (SCF gradient or CI residual);
+ *                               transformation, 4 Full CI, 5 done, 6 coupled-cluster
+ *                               iterations, 7 (T) correction), iteration (for 7: percent
+ *                               done), total energy (E_h) and residual (SCF gradient, CI
+ *                               residual or largest amplitude change);
  *   macqc_job_free(job)         releases the handle (after macqc_run_job has returned).
  */
 #ifndef MACQC_API_H

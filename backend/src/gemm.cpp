@@ -1,8 +1,16 @@
 // Portable cache-blocked matrix multiplication (row-major), see macqc/linalg.h.
+// With MACQC_USE_ACCELERATE (the macOS app) the product is Apple's BLAS (Accelerate),
+// which uses the matrix units of Apple silicon; the portable code is the fallback.
 #include <algorithm>
+#include <climits>
 #include <cstddef>
 #include <thread>
 #include <vector>
+
+#if defined(MACQC_USE_ACCELERATE)
+#define ACCELERATE_NEW_LAPACK 1
+#include <Accelerate/Accelerate.h>
+#endif
 
 #include "macqc/linalg.h"
 
@@ -75,7 +83,14 @@ inline void micro_kernel(std::size_t kc, const double* a, const double* b, doubl
 
 void gemm_serial(const View& A, const View& B, std::size_t m, std::size_t n, std::size_t k, double alpha, double* c,
                  std::size_t ldc) {
-    std::vector<double> pa(((MC + MR - 1) / MR) * MR * KC), pb(((NC + NR - 1) / NR) * NR * KC);
+    // Packing buffers sized for this product, reused by the thread (the packing routines write
+    // every element they use, padding included).
+    thread_local std::vector<double> pa, pb;
+    const std::size_t kmax = std::min(KC, k);
+    const std::size_t asize = ((std::min(MC, m) + MR - 1) / MR) * MR * kmax;
+    const std::size_t bsize = ((std::min(NC, n) + NR - 1) / NR) * NR * kmax;
+    if (pa.size() < asize) pa.resize(asize);
+    if (pb.size() < bsize) pb.resize(bsize);
     for (std::size_t j0 = 0; j0 < n; j0 += NC) {
         const std::size_t nc = std::min(NC, n - j0);
         for (std::size_t p0 = 0; p0 < k; p0 += KC) {
@@ -97,6 +112,17 @@ void gemm_serial(const View& A, const View& B, std::size_t m, std::size_t n, std
 
 void gemm(bool trans_a, bool trans_b, std::size_t m, std::size_t n, std::size_t k, double alpha, const double* a,
           std::size_t lda, const double* b, std::size_t ldb, double beta, double* c, std::size_t ldc, int threads) {
+#if defined(MACQC_USE_ACCELERATE)
+    if (m > 0 && n > 0 && k > 0 && m <= INT_MAX && n <= INT_MAX && k <= INT_MAX && lda <= INT_MAX &&
+        ldb <= INT_MAX && ldc <= INT_MAX) {
+        (void)threads;
+        cblas_dgemm(CblasRowMajor, trans_a ? CblasTrans : CblasNoTrans, trans_b ? CblasTrans : CblasNoTrans,
+                    static_cast<__LAPACK_int>(m), static_cast<__LAPACK_int>(n), static_cast<__LAPACK_int>(k), alpha, a,
+                    static_cast<__LAPACK_int>(lda), b, static_cast<__LAPACK_int>(ldb), beta, c,
+                    static_cast<__LAPACK_int>(ldc));
+        return;
+    }
+#endif
     if (m == 0 || n == 0) return;
     if (beta != 1.0)
         for (std::size_t i = 0; i < m; ++i) {

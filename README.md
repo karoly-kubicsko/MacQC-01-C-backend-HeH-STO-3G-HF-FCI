@@ -1,20 +1,22 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 3.0** — see [Versions](#versions).
+**Current version: 4.0** — see [Versions](#versions).
 
-ΨLab computes small molecules with restricted Hartree–Fock and Full CI:
+ΨLab computes small molecules with restricted Hartree–Fock, coupled cluster and Full CI:
 
 - **H₂, LiH and H₂O** in the correlation-consistent basis sets aug-cc-pVXZ and aug-cc-pCVXZ
-  (X = D, T, Q, 5; spherical Gaussians up to h functions, from basissetexchange.org) — RHF for all
-  of them, Full CI for H₂ and LiH where it is feasible. Before a calculation ΨLab shows its size
-  (basis functions, two-electron integrals, determinants), memory and estimated time; it warns
-  about long calculations and refuses impossible ones with an explanation (e.g. Full CI for H₂O:
+  (X = D, T, Q, 5; spherical Gaussians up to h functions, from basissetexchange.org) with the
+  methods **HF, CCSD, CCSD(T), CCSDT, CCSDTQ and Full CI** (all electrons correlated): RHF and
+  CCSD(T) for all of them, CCSDT and CCSDTQ where they fit into memory, Full CI for H₂ and LiH
+  where it is feasible. Before a calculation ΨLab shows its size (basis functions, two-electron
+  integrals, amplitudes, determinants), memory and estimated time; it warns about long
+  calculations and refuses impossible ones with an explanation (e.g. Full CI for H₂O:
   5.6·10¹¹ determinants already in aug-cc-pVDZ).
 - **HeH⁺** in a minimal STO-nG basis (n = 1, 2, 3), the Szabo–Ostlund calculation: Hartree–Fock
   identical to the book's program, Full CI with all states and their spin.
 
-It shows energies, orbital energies, SCF and Davidson iterations, the leading CI determinants and
-natural-orbital occupations, the full text report, and scans potential-energy curves with the
+It shows energies, orbital energies, SCF, coupled-cluster and Davidson iterations, the largest
+cluster amplitudes, the leading CI determinants and natural-orbital occupations, the full text report, and scans potential-energy curves with the
 minima marked. SwiftUI with Liquid Glass on macOS 26; runs on macOS 14 and later, on Apple
 Silicon and Intel Macs. The same calculations run in the terminal on Linux and macOS
 ([`psilab`](#terminal-version-linux)).
@@ -29,10 +31,11 @@ Silicon and Intel Macs. The same calculations run in the terminal on Linux and m
 - **Sidebar**: the **molecule** (HeH⁺, H₂, LiH, H₂O) and, for H₂, LiH and H₂O:
   - the geometry: bond length in Å and in bohr (both editable) and, for H₂O, the H–O–H angle;
     *Experimental geometry* restores 0.74144 Å (H₂), 1.5949 Å (LiH), 0.9572 Å and 104.52° (H₂O);
-  - the **method** (RHF or Full CI) and the **basis set** (aug-cc-pVDZ … aug-cc-pV5Z,
-    aug-cc-pCVDZ … aug-cc-pCV5Z);
+  - the **method** — HF, CCSD, CCSD(T), CCSDT, CCSDTQ or Full CI (a menu, in this order) — and
+    the **basis set** (aug-cc-pVDZ … aug-cc-pV5Z, aug-cc-pCVDZ … aug-cc-pCV5Z);
   - *Size of the calculation*, updated as you type: basis functions per atom, two-electron
-    integrals (kept in memory or integral-direct), Full CI determinants and memory, estimated time.
+    integrals (kept in memory or integral-direct), coupled-cluster amplitudes and memory, Full CI
+    determinants and memory, estimated time.
     Notes (e.g. H takes aug-cc-pVXZ in the core-valence sets) in grey, warnings in orange, and a
     red explanation when the calculation is not possible (then **Run** is disabled); the run bar and,
     before the first result, the detail area repeat the refusal or the long-calculation warning.
@@ -42,23 +45,32 @@ Silicon and Intel Macs. The same calculations run in the terminal on Linux and m
   the appearance (System / Light / Dark).
 - **Run** (⌘R) calculates on all processor cores. A calculation estimated to take longer than
   30 s asks for confirmation first; while it runs, the sidebar shows the progress (SCF iteration,
-  integral transformation, Davidson iteration with energy and residual) and the elapsed time, and
+  integral transformation, coupled-cluster iteration with energy and largest amplitude change,
+  progress of the (T) correction, Davidson iteration with energy and residual) and the elapsed time, and
   **Cancel** (⌘.) stops it.
 - **Tabs**: *Summary* (energies, geometry, basis set per atom, convergence, timings),
   *Hartree–Fock* (energy components and virial ratio, orbital energies, SCF iterations; for HeH⁺
-  also the integrals and the S/H/F/C/P matrices), *Full CI* (energies, ⟨S²⟩, leading determinants,
+  also the integrals and the S/H/F/C/P matrices), *CC* (coupled cluster: energies, (T) correction,
+  T1 diagnostic, amplitude counts and norms, largest amplitudes, convergence of the iterations),
+  *Full CI* (energies, ⟨S²⟩, leading determinants,
   natural-orbital occupations, Davidson iterations; for HeH⁺ the CI vector, singlet weights and all
   states), *Potential curve* (bond-length scan with a selectable step in Å — H₂O as a symmetric
-  stretch — with the RHF and Full CI minima; long scans ask for confirmation and can be stopped)
-  and *Report* (the complete text report); *View ▸ Summary … Report* (⌘1 … ⌘5) switches tabs.
+  stretch — with the RHF minimum and that of the selected correlated method; long scans ask for
+  confirmation and can be stopped) and *Report* (the complete text report); *View ▸ Summary …
+  Report* (⌘1 … ⌘6) switches tabs.
 - **Menus**: *File ▸ Export Results as Text…* (⇧⌘E) saves a `.txt` file with the summary, the full
-  calculation report (every SCF iteration, the Full CI section) and, after a scan, the potential-curve
+  calculation report (every SCF iteration, the coupled-cluster or Full CI section) and, after a
+  scan, the potential-curve
   table; *File ▸ Export Results as JSON…* (⌥⇧⌘E) saves the same results as JSON;
   *Edit ▸ Copy Summary as Text* (⇧⌘C) copies the short summary.
 - **Build from source**: see [`app/SETUP.md`](app/SETUP.md) (Xcode 26, or XcodeGen with
   `xcode/project.yml`).
 
 ## Versions
+
+### 4.0
+Coupled cluster (CCSD, CCSD(T), CCSDT, CCSDTQ) and the method menu HF … Full CI — see
+[Version 4.0 (next version)](#version-40-next-version) at the end of this file.
 
 ### 3.0
 - **H₂, LiH and H₂O** in eight correlation-consistent basis sets (aug-cc-pVXZ, aug-cc-pCVXZ,
@@ -142,10 +154,10 @@ molecule = H2O               # H2, LiH or H2O (default HeH+)
 basis    = aug-cc-pVTZ       # aug-cc-pVXZ or aug-cc-pCVXZ, X = D, T, Q, 5
 R        = 0.9572 angstrom   # O-H (H2: H-H, LiH: Li-H); default 0.74144 / 1.5949 / 0.9572 Å
 angle    = 104.52            # H-O-H in degrees (H2O only)
-method   = RHF               # RHF, or FCI (RHF followed by Full CI; H2 and LiH up to aug-cc-pCVTZ)
+method   = RHF               # HF (RHF), CCSD, CCSD(T), CCSDT, CCSDTQ, or FCI (H2 and LiH up to aug-cc-pCVTZ)
 threads  = 0                 # 0: all processor cores
 memory   = 1024 MB           # two-electron integrals are kept in memory up to this size
-fci_memory = 4 GB            # memory limit of a Full CI
+fci_memory = 4 GB            # memory limit of Full CI and coupled cluster
 ```
 
 `psilab --estimate input.inp` prints the size of the calculation (basis functions, two-electron
@@ -309,13 +321,78 @@ function combination in LiH/aug-cc-pCVQZ, whose smallest overlap eigenvalue is 8
 (number of basis functions in parentheses; for H₂ the aug-cc-pCVXZ rows equal aug-cc-pVXZ, because
 H takes the aug-cc-pVXZ functions)
 
+### Coupled cluster (version 4.0)
+
+ΨLab 4.0 adds CCSD, CCSD(T), CCSDT and CCSDTQ for H₂, LiH and H₂O on the canonical RHF orbitals,
+all electrons correlated (no frozen core); the Fock matrix is used in full.
+
+- **CCSD and CCSD(T)** (`cc_closed_shell.cpp`): closed-shell, spin-adapted CCSD equations
+  (Stanton–Gauss intermediates in the form of PySCF's `rccsd`) written as matrix products. The
+  integrals with at least one occupied index come from a transformation that keeps one occupied
+  index in the ket (memory o·n·N(N+1)/2). The particle–particle ladder Σ_cd (ac|bd) τ_ij^cd runs in
+  the AO basis: τ_ij is back-transformed with the virtual orbitals, split into its symmetric and
+  antisymmetric parts, contracted with the AO integrals like an exchange matrix (o² "densities"
+  at once) and transformed back. The AO integrals are kept in memory when they fit, otherwise
+  recomputed with Schwarz screening, so no (vv|vv) integrals are stored. (T):
+  E = Σ_ijk Σ_abc (4W_abc + W_bca + W_cab)(V_abc − V_cba)/(3D_ijk^abc), looping over i ≥ j ≥ k
+  with matrix products (cost o³v⁴).
+- **CCSDT and CCSDTQ** (`cc_general.cpp`): a general-order spin-orbital engine. Amplitudes t(A;I)
+  are stored once per pair of sorted sets of spin orbitals, blocked by the number of α orbitals
+  and addressed with the combinatorial number system (6.8·10⁷ for CCSDTQ of H₂O/aug-cc-pVDZ
+  instead of 2.7·10¹¹ in a full spin-orbital array). The residuals ⟨μ|(H e^T)_C|0⟩ are the 183
+  connected diagrams up to quadruples from `backend/tools/cc_diagrams.py`, which enumerates them,
+  orders the cluster vertices of each for the lowest cost and determines every sign by fitting to
+  a brute-force evaluation of ⟨μ|e^−T H e^T|0⟩ in a determinant space (exact to 1e-13). Each
+  diagram is evaluated from the Hamiltonian vertex outwards, one cluster vertex at a time, as one
+  matrix product per spin case (gather, product, signed scatter); diagrams that begin alike share
+  their intermediates. The engine also runs CCSD (used for cross-checks).
+- Both engines: Jacobi updates with DIIS, converged when the largest amplitude change is below
+  1e-8 and |ΔE| below 1e-10 Eₕ. The report lists the energies, the (T) correction, the T1
+  diagnostic, the amplitude norms per rank and the largest amplitudes.
+- **Limits** (`cc_estimate.cpp`): memory and time are estimated before running; a calculation is
+  refused above `fciMemoryMB` (60 % of the RAM in the app, at most 48 GB) or above three days.
+  CCSDTQ for H₂O needs about 5.5 GB in aug-cc-pVDZ and is refused in larger basis sets; CCSDT
+  for H₂O runs up to aug-cc-pVTZ (about 4 GB, estimated 77 min on 4 threads). For two electrons
+  every method equals Full CI; for four electrons (LiH) CCSDTQ equals Full CI. ΨLab adds a note
+  in both cases.
+
+Verification:
+
+- CCSD and CCSD(T) agree with PySCF (`reference/pyscf_cc_reference.py`: same basis files,
+  geometries and linear-dependency threshold) within 3e-10 Eₕ for H₂ (aug-cc-pVDZ, aug-cc-pVTZ),
+  LiH (aug-cc-pVDZ, aug-cc-pCVDZ) and H₂O (aug-cc-pVDZ, aug-cc-pCVDZ, aug-cc-pVTZ), with the AO
+  integrals of the ladder in memory and recomputed.
+- CCSD, CCSDT and CCSDTQ from both engines agree within 1e-12 Eₕ with brute-force coupled cluster
+  in the determinant space (`backend/tests/gen_cc_reference.py`, no coupled-cluster equations
+  coded): random integrals with a non-diagonal Fock matrix (6 electrons in 7 orbitals), H₂O/STO-3G
+  and LiH/6-31G.
+- Exactness: CCSD, CCSDT and CCSDTQ equal Full CI for H₂, and CCSDTQ equals Full CI for
+  LiH/aug-cc-pVDZ (−8.0212084789 Eₕ, 246,016 determinants).
+
+Energies at the default geometries (Eₕ, aug-cc-pVDZ):
+
+| Method | H₂ | LiH | H₂O |
+| --- | --- | --- | --- |
+| RHF | −1.1287937367 | −7.9841394069 | −76.0414279605 |
+| CCSD | −1.1646244795 | −8.0211854592 | −76.2707727838 |
+| CCSD(T) | −1.1646244795 | −8.0212069372 | −76.2760053269 |
+| CCSDT | −1.1646244795 | −8.0212097170 | −76.2762366785 |
+| CCSDTQ | −1.1646244795 | −8.0212084789 | (about 5.5 GB) |
+| Full CI | −1.1646244795 | −8.0212084789 | not possible |
+
+Timings with 4 threads (2.1 GHz x86-64, portable matrix products; the app uses Accelerate):
+H₂O CCSD(T) in aug-cc-pVDZ 0.5 s, aug-cc-pVTZ 6 s, aug-cc-pVQZ 51 s; H₂O CCSDT/aug-cc-pVDZ
+2.6 min (20 iterations); LiH CCSDTQ/aug-cc-pVDZ 1.6 min.
+
 ### Layout
 
 ```
 backend/include/macqc/   public headers (macqc_api.h is the C API)
 backend/src/             linalg, integrals, scf, fci, report, calculation, api (HeH+, STO-nG);
                          molecule, basis, gto_integrals, rhf, molecular (H2, LiH, H2O);
-                         gemm, mo_integrals, ci (Full CI for H2, LiH); job (cancel/progress)
+                         gemm, mo_integrals, ci (Full CI for H2, LiH); job (cancel/progress);
+                         cc_closed_shell (CCSD, (T)), cc_general (CCSDT, CCSDTQ), cc_estimate
+backend/tools/           cc_diagrams.py: generates and verifies the coupled-cluster diagrams
 basis/                   Gaussian94 basis-set files from basissetexchange.org (+ README)
 backend/cli/main.cpp     developer command-line tool `macqc` (flags / JSON)
 backend/cli/psilab*      terminal version `psilab` (text input file -> text output file)
@@ -374,7 +451,9 @@ void  macqc_job_cancel(macqc_job* job);    // from another thread; the run then 
                                            // "error": "calculation cancelled"
 void  macqc_job_progress(const macqc_job* job, int* stage, int* iteration,
                          double* energy, double* residual);
-      // stage 0 idle, 1 integrals, 2 SCF, 3 integral transformation, 4 Full CI, 5 done
+      // stage 0 idle, 1 integrals, 2 SCF, 3 integral transformation, 4 Full CI, 5 done,
+      // 6 coupled-cluster iterations (residual = largest amplitude change), 7 (T) correction
+      // (iteration = percent done)
 void  macqc_job_free(macqc_job* job);      // after macqc_run_job has returned
 ```
 
@@ -402,10 +481,13 @@ above unchanged):
 ```
 
 `R` is in bohr (H₂O: O–H) and defaults to the experimental equilibrium bond length; `angle`
-(degrees, H₂O) defaults to 104.52; `method` is `"RHF"` or `"FCI"` (RHF followed by Full CI);
+(degrees, H₂O) defaults to 104.52; `method` is `"RHF"` (also `"HF"`), `"CCSD"`, `"CCSD(T)"`,
+`"CCSDT"`, `"CCSDTQ"` or `"FCI"` (the correlated methods follow RHF); `fciMemoryMB` is the
+memory limit of Full CI and coupled cluster;
 `basisDirectory` defaults to `$PSILAB_BASIS_DIR` or the compiled-in source folder. With
 `"estimateOnly":true` only the molecule, the basis set, the size and time estimate, the warnings
-and (for a Full CI that is not possible) the refusal are returned, without an error.
+and (for a Full CI or coupled-cluster calculation that is not possible) the refusal are
+returned, without an error.
 
 #### Output JSON
 
@@ -447,7 +529,10 @@ For general molecules the output is
   "estimate": {"basisFunctions","uniqueIntegrals","integralMemoryMB","integralsStored",
                "threads","rhfSeconds","totalSeconds","longCalculation",
                "fci": {"orbitals","alphaElectrons","betaElectrons","alphaStrings","betaStrings",
-                       "determinants","memoryMB","seconds","feasible","reason"} | null},
+                       "determinants","memoryMB","seconds","feasible","reason"} | null,
+               "coupledCluster": {"method","engine","occupied","virtuals","amplitudes","memoryMB",
+                       "ladderIntegralsStored","iterations","iterationSeconds","triplesSeconds",
+                       "seconds","feasible","reason"} | null},
   "notes":    ["aug-cc-pCVDZ is not defined for H ..."],
   "warnings": ["Long calculation: ... Estimated time about 6 min on 8 threads."],
   "refusal":  null | "Full CI is not possible here: ...",
@@ -462,13 +547,21 @@ For general molecules the output is
              "determinants","naturalOccupations","transformSeconds","ciSeconds",
              "leadingDeterminants":[{"coefficient","alpha":[MOs],"beta":[MOs],"excitation"}],
              "history":[{"iteration","totalEnergy","residual","subspace"}]} | null,
+  "coupledCluster": {"method","engine","converged","iterations","occupied","virtuals",
+             "referenceEnergy","correlationEnergy","ccEnergy","triplesCorrection" | null,
+             "totalEnergy","t1Diagnostic","amplitudeCounts":[by rank],"amplitudeNorms":[by rank],
+             "leadingAmplitudes":[{"value","rank","occupied":[MOs],"virtuals":[MOs],"spins"}],
+             "history":[{"iteration","totalEnergy","correlationEnergy","deltaE","residual"}],
+             "ladder","transformSeconds","ccSeconds","triplesSeconds"} | null,
   "hf": null, "fci": null,
   "report": "text report"
 }
 ```
 
-A refused calculation (e.g. LiH/aug-cc-pCV5Z, or Full CI for H₂O) has `error` set and `rhf` and
-`fullCI` `null`; for Full CI the reason is also in `refusal`.
+A refused calculation (e.g. LiH/aug-cc-pCV5Z, Full CI for H₂O, CCSDTQ for H₂O/aug-cc-pVTZ) has
+`error` set and `rhf`, `fullCI` and `coupledCluster` `null`; for Full CI and coupled cluster the
+reason is also in `refusal`. `correlationEnergy` and `ccEnergy` exclude (T); `totalEnergy`
+includes it.
 
 ### Adding to Xcode
 
@@ -535,6 +628,32 @@ XcodeGen project spec in `xcode/project.yml`. See [`app/SETUP.md`](app/SETUP.md)
 - `.github/workflows/app.yml` builds the universal ΨLab app on a `macos-26` runner (XcodeGen +
   Xcode), checks that the basis-set files are inside the bundle, runs a UI smoke test (launch, all
   tabs, potential-curve scans, menus, light and dark appearance; H₂O RHF, LiH Full CI, an H₂ curve,
-  the refused Full CI of H₂O and a long-calculation warning, selected with launch arguments
+  the refused Full CI of H₂O, a long-calculation warning, H₂O CCSD(T), the open method menu, LiH
+  CCSDT and the refused CCSDTQ of H₂O/aug-cc-pVTZ, selected with launch arguments
   `-psilabMolecule`, `-psilabBasis`, `-psilabMethod`; screenshots) and publishes the **ΨLab-app**
   download.
+
+## Version 4.0 (next version)
+
+ΨLab 4.0 is the next version of the application, after 3.0. It adds coupled-cluster methods
+for H₂, LiH and H₂O; HeH⁺ (Szabo–Ostlund) is unchanged.
+
+- **Coupled cluster**: CCSD, CCSD(T), CCSDT and CCSDTQ for H₂, LiH and H₂O, all electrons
+  correlated, on the RHF orbitals. The method menu offers HF, CCSD, CCSD(T), CCSDT, CCSDTQ and
+  Full CI.
+  - CCSD and CCSD(T): closed-shell, spin-adapted equations; the (vv|vv) ladder runs over AO
+    integrals (in memory or recomputed), so H₂O CCSD(T) works up to aug-cc-pCV5Z.
+  - CCSDT and CCSDTQ: a general-order spin-orbital engine whose 183 diagrams are generated and
+    checked by `backend/tools/cc_diagrams.py`.
+- Verified: CCSD and CCSD(T) agree with PySCF within 3e-10 Eₕ (H₂, LiH and H₂O, seven cases);
+  CCSD, CCSDT and CCSDTQ agree with brute-force coupled cluster in the determinant space to 1e-12;
+  CCSDTQ reproduces Full CI for LiH (four electrons) and every method reproduces Full CI for H₂.
+- Estimates of amplitudes, memory and time; refusals above the memory limit (60 % of the RAM in
+  the app) or three days, warnings for long calculations, notes where a method is exact.
+- New *CC* (coupled cluster) tab; potential curves with any method; matrix products through Apple's
+  Accelerate in the app.
+- Terminal version: `method = HF | CCSD | CCSD(T) | CCSDT | CCSDTQ | FCI`.
+- Usage: choose the method in the sidebar's **Method** menu (HF, CCSD, CCSD(T), CCSDT, CCSDTQ,
+  Full CI) and press **Run**; the results are in the *Summary* and *CC* (coupled cluster) tabs, the
+  energies of all methods for H₂, LiH and H₂O/aug-cc-pVDZ are listed under
+  [Coupled cluster (version 4.0)](#coupled-cluster-version-40).
