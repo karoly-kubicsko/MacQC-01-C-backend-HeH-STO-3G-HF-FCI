@@ -90,6 +90,10 @@ int expected_scf_iterations(const std::string& molecule);
 void run_molecular(MolecularResult& result, const RHFProgress& progress = RHFProgress(),
                    const FCIProgress& fci_progress = FCIProgress(), const CCProgress& cc_progress = CCProgress());
 
+// The Full CI and coupled-cluster sections of the report (also used by the job output).
+std::string fci_report_section(const FCIResultGeneral& f, double rhf_energy, int level);
+std::string cc_report_section(const CCResult& c, int level);
+
 // Report text (also stored in result.report by run_molecular).
 std::string molecular_report(const MolecularResult& result);
 

@@ -43,6 +43,8 @@ struct OptimizationOptions {
     double max_trust = 0.5, min_trust = 1.0e-3;
     std::string initial_hessian = "auto";  // auto | analytic | lindh | schlegel
     int analytic_hessian_max_functions = 100;  // "auto": analytic RHF Hessian up to this size
+    // Called before the energy and gradient of each step (for the output file).
+    std::function<void(int, const Molecule&)> on_step_start;
 };
 
 struct ConvergenceItem {

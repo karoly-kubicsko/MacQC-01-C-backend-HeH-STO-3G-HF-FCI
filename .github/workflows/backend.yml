@@ -49,6 +49,18 @@ jobs:
           printf 'molecule = H2O\nmethod = FCI\n' > h2o-fci.inp
           if ./build/psilab h2o-fci.inp; then echo "Full CI for H2O must be refused"; exit 1; fi
 
+      - name: Terminal version, job types (5.0)
+        run: |
+          printf 'molecule = H2O\nmethod = HF\njob = opt+freq+sp\nsp_method = CCSD(T)\nR = 1.0 angstrom\nangle = 110\n' > job5.inp
+          ./build/psilab --estimate job5.inp
+          ./build/psilab job5.inp job5.out
+          grep -q "Stationary point found" job5.out
+          grep -q "Normal termination" job5.out
+          sed -n '/---- Summary/,$p' job5.out
+          printf 'molecule = H2O\nmethod = CCSDTQ\njob = freq\nfci_memory = 8 GB\n' > h2o-ccsdtq.inp
+          if ./build/psilab h2o-ccsdtq.inp; then echo "CCSDTQ frequencies of H2O must be refused"; exit 1; fi
+          grep -q "CCSDTQ frequencies for H2O is not possible" h2o-ccsdtq.out
+
   # Recomputes the stored reference values with PySCF (an independent program), so the
   # numbers the C++ tests compare with are reproducible.
   pyscf-reference:
@@ -130,3 +142,9 @@ jobs:
           PSILAB_TEST_MAX_NBF: "400"
           PSILAB_BASIS_DIR: ${{ github.workspace }}/basis
         run: ./build/macqc_correlated_gradient_tests
+
+      - name: Job types, including H2O CCSDT frequencies (19 CCSDT energies)
+        env:
+          PSILAB_TEST_MAX_NBF: "400"
+          PSILAB_BASIS_DIR: ${{ github.workspace }}/basis
+        run: ./build/macqc_job_tests

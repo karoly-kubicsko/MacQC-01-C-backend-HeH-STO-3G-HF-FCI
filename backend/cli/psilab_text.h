@@ -6,13 +6,18 @@
 //   R          bond length (H2O: O-H), a number optionally followed by a unit: bohr (default)
 //              or angstrom; default for H2, LiH, H2O: the experimental equilibrium value
 //   angle      H-O-H angle in degrees (H2O; default 104.52)
-//   method     RHF | FCI (H2, LiH, H2O; Full CI is refused where it is impossible, e.g. H2O)
+//   method     HF | CCSD | CCSD(T) | CCSDT | CCSDTQ | FCI (H2, LiH, H2O; refused where impossible)
+//   job        energy (default) | opt | freq | opt+freq | opt+freq+sp     (H2, LiH, H2O)
+//   sp_method, sp_basis   method and basis set of the single point of opt+freq+sp
+//   temperature  K (default 298.15)       pressure  Pa (default 101325; units Pa, kPa, bar, atm)
+//   opt_convergence  normal | tight       max_steps  optimisation steps (default 50)
 //   threads, memory, fci_memory (MB or GB), basis_dir      (H2, LiH, H2O)
 //   zeta_He, zeta_H, exact_erf, scan, scan_step (HeH+ only):
 //   zeta_He    Slater exponent of He          zeta_H     Slater exponent of H
 //   exact_erf  yes | no                       scan       yes | no
 //   scan_step  step of the potential-curve scan (bohr), R = 0.8 ... 5.0 bohr
-// The output text matches the macOS app's File > Export Results as Text.
+// The output text matches the macOS app's File > Export Results as Text. For H2, LiH and H2O
+// it is the output file of ΨLab 5.0, written while the job runs.
 #pragma once
 
 #include <optional>
@@ -38,7 +43,11 @@ struct Settings {
     bool scan = false;
     double scanStep = 0.1;  // bohr
     bool rGiven = false;    // R was in the input (else the molecule's default)
+    std::string sourceText; // the input file (echoed in the output file)
 };
+
+// The "Input" section of the output file: the keys as understood, then the file as given.
+std::string input_echo_text(const Settings& settings);
 
 // Parses the text input. Throws std::runtime_error("line N: ...") on any problem,
 // including values the calculation would reject.
@@ -67,8 +76,9 @@ struct RunResult {
     std::optional<macqc::Output> output;  // the single-point calculation
 };
 
-// Runs the single-point calculation (and the scan if requested) and formats the output.
-RunResult run_to_text(const Settings& settings);
+// Runs the calculation (and the scan if requested) and formats the output. H2, LiH, H2O: the
+// output file is also passed to `sink` piece by piece while the job runs.
+RunResult run_to_text(const Settings& settings, const macqc::OutputSink& sink = macqc::OutputSink());
 
 // H2, LiH, H2O: size of the calculation, time estimate and warnings, without computing
 // (empty for HeH+).

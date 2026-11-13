@@ -139,74 +139,21 @@ std::string summary_text(const macqc::Output& out) {
     return s;
 }
 
-std::string general_summary(const macqc::Output& out) {
-    const macqc::MolecularResult& m = *out.molecular;
-    std::vector<std::string> lines;
-    lines.push_back("\xCE\xA8Lab \xE2\x80\x93 " + m.molecule.name + ", " + m.input.method + "/" + m.basis.name);
-    if (m.molecule.name == "H2O")
-        lines.push_back("R(O-H) = " + length_both(m.input.R, 4) + format(", angle H-O-H = %.2f deg", m.input.angle));
-    else
-        lines.push_back(std::string(m.molecule.name == "LiH" ? "R(Li-H) = " : "R(H-H) = ") + length_both(m.input.R, 4));
-    std::string per_atom;
-    std::vector<std::string> seen;
-    for (const auto& a : m.basis.atoms) {
-        if (std::find(seen.begin(), seen.end(), a.symbol) != seen.end()) continue;
-        seen.push_back(a.symbol);
-        per_atom += (per_atom.empty() ? "" : ", ") + a.symbol + " " + a.contraction;
+}  // namespace
+
+std::string input_echo_text(const Settings& settings) {
+    // The input of the job as it was understood (defaults filled in).
+    macqc::Input in = settings.input;
+    in.job = macqc::canonical_job_type(in.job);
+    std::string s = macqc::input_echo(in);
+    if (!settings.sourceText.empty()) {
+        s += "\n    Input file as given:\n";
+        std::istringstream lines(settings.sourceText);
+        std::string l;
+        while (std::getline(lines, l)) s += "    | " + l + "\n";
     }
-    lines.push_back(format("%d basis functions (%s)", m.basis.n_functions, per_atom.c_str()));
-    for (const auto& n : m.notes) lines.push_back("Note: " + n);
-    if (m.rhf) {
-        const auto& h = *m.rhf;
-        lines.push_back("");
-        lines.push_back("Hartree-Fock (RHF)");
-        lines.push_back(format("  converged:            %s (%d iterations)", h.converged ? "yes" : "no", h.iterations));
-        lines.push_back(format("  total energy:         %.10f E_h", h.total_energy));
-        lines.push_back(format("  electronic energy:    %.10f E_h", h.electronic_energy));
-        lines.push_back(format("  nuclear repulsion:    %.10f E_h", h.nuclear_repulsion));
-        const int no = h.n_occupied;
-        if (no >= 1 && no < static_cast<int>(h.orbital_energies.size()))
-            lines.push_back(format("  HOMO, LUMO:           %.8f, %.8f E_h", h.orbital_energies[no - 1],
-                                   h.orbital_energies[no]));
-    }
-    if (m.fci) {
-        const auto& f = *m.fci;
-        lines.push_back("");
-        lines.push_back("Full CI");
-        lines.push_back(format("  determinants:         %zu (%d orbitals, %d electrons)", f.determinants, f.orbitals,
-                               f.alpha + f.beta));
-        lines.push_back(format("  converged:            %s (%d Davidson iterations)", f.converged ? "yes" : "no",
-                               f.iterations));
-        lines.push_back(format("  total energy:         %.10f E_h", f.total_energy));
-        lines.push_back(format("  correlation energy:   %.10f E_h", f.correlation_energy));
-        lines.push_back(format("  <S^2>:                %.6f", f.s2));
-        lines.push_back(format("  RHF determinant:      |C_0|^2 = %.6f", f.hf_weight));
-    }
-    if (m.cc) {
-        const auto& c = *m.cc;
-        lines.push_back("");
-        lines.push_back("Coupled cluster " + c.method);
-        lines.push_back(format("  converged:            %s (%d iterations)", c.converged ? "yes" : "no", c.iterations));
-        if (c.has_triples) {
-            lines.push_back(format("  CCSD energy:          %.10f E_h", c.cc_energy));
-            lines.push_back(format("  (T) correction:       %.10f E_h", c.triples_correction));
-        }
-        lines.push_back(format("  total energy:         %.10f E_h", c.total_energy));
-        lines.push_back(format("  correlation energy:   %.10f E_h", c.total_energy - c.reference_energy));
-        lines.push_back(format("  T1 diagnostic:        %.6f", c.t1_diagnostic));
-    }
-    if (!m.refusal.empty()) lines.push_back("Not possible: " + m.refusal);
-    for (const auto& w : m.warnings) lines.push_back("Warning: " + w);
-    if (!out.error.empty()) {
-        lines.push_back("");
-        lines.push_back("Error: " + out.error);
-    }
-    std::string s;
-    for (std::size_t i = 0; i < lines.size(); ++i) s += (i ? "\n" : "") + lines[i];
     return s;
 }
-
-}  // namespace
 
 Settings parse_input_text(const std::string& text) {
     struct Entry {
@@ -229,6 +176,13 @@ Settings parse_input_text(const std::string& text) {
         if (k == "memory" || k == "memorymb") return "memory";
         if (k == "fcimemory" || k == "fcimemorymb") return "fci_memory";
         if (k == "basisdir" || k == "basisdirectory") return "basis_dir";
+        if (k == "job" || k == "jobtype") return "job";
+        if (k == "spmethod") return "sp_method";
+        if (k == "spbasis" || k == "spbasisset") return "sp_basis";
+        if (k == "temperature" || k == "t") return "temperature";
+        if (k == "pressure" || k == "p") return "pressure";
+        if (k == "optconvergence" || k == "convergence") return "opt_convergence";
+        if (k == "maxsteps" || k == "optmaxsteps") return "max_steps";
         return "";
     };
     std::map<std::string, Entry> entries;
@@ -249,8 +203,9 @@ Settings parse_input_text(const std::string& text) {
         const std::string k = canonical_key(normalize_key(key));
         if (k.empty())
             fail(line, "unknown key '" + key +
-                           "' (known: molecule, basis, R, angle, method, zeta_He, zeta_H, exact_erf, scan, "
-                           "scan_step, threads, memory, fci_memory, basis_dir)");
+                           "' (known: molecule, basis, R, angle, method, job, sp_method, sp_basis, temperature, "
+                           "pressure, opt_convergence, max_steps, zeta_He, zeta_H, exact_erf, scan, scan_step, "
+                           "threads, memory, fci_memory, basis_dir)");
         if (entries.count(k)) fail(line, "'" + key + "' is given twice");
         entries[k] = Entry{key, value, line};
     }
@@ -280,6 +235,8 @@ Settings parse_input_text(const std::string& text) {
     only("memory", !heh, "H2, LiH and H2O");
     only("fci_memory", !heh, "H2, LiH and H2O");
     only("basis_dir", !heh, "H2, LiH and H2O");
+    for (const char* k : {"job", "sp_method", "sp_basis", "temperature", "pressure", "opt_convergence", "max_steps"})
+        only(k, !heh, "H2, LiH and H2O");
 
     std::vector<std::pair<std::string, Entry>> ordered(entries.begin(), entries.end());
     std::sort(ordered.begin(), ordered.end(),
@@ -340,11 +297,73 @@ Settings parse_input_text(const std::string& text) {
             (k == "memory" ? s.input.memoryMB : s.input.fciMemoryMB) = mb;
         } else if (k == "basis_dir") {
             s.input.basisDirectory = value;
+        } else if (k == "job") {
+            s.input.job = macqc::canonical_job_type(value);
+            if (s.input.job.empty())
+                fail(ln, "job must be energy, opt, freq, opt+freq or opt+freq+sp, got '" + value + "'");
+        } else if (k == "sp_method") {
+            std::string m;
+            for (char c : lower(value))
+                if (c != '-' && c != ' ') m += c;
+            const std::string canonical = m == "hartreefock" ? "RHF" : macqc::canonical_method_name(value);
+            if (canonical.empty())
+                fail(ln, "sp_method must be HF (RHF), CCSD, CCSD(T), CCSDT, CCSDTQ or FCI, got '" + value + "'");
+            s.input.spMethod = canonical;
+        } else if (k == "sp_basis") {
+            s.input.spBasis = macqc::canonical_basis_name(value);
+            if (s.input.spBasis.empty()) fail(ln, "unknown basis set '" + value + "' for sp_basis");
+        } else if (k == "temperature") {
+            std::istringstream ts(value);
+            std::string number, unit, extra;
+            ts >> number >> unit >> extra;
+            if (!extra.empty()) fail(ln, "temperature has unexpected text '" + extra + "'");
+            const std::string u = lower(unit);
+            if (!u.empty() && u != "k") fail(ln, "temperature unit must be K");
+            s.input.temperature = parse_number(number, ln, e.key);
+            if (!(s.input.temperature > 0.0) || s.input.temperature > 1.0e5) fail(ln, "temperature must be between 0 and 100000 K");
+        } else if (k == "pressure") {
+            std::istringstream ps(value);
+            std::string number, unit, extra;
+            ps >> number >> unit >> extra;
+            if (!extra.empty()) fail(ln, "pressure has unexpected text '" + extra + "'");
+            double v = parse_number(number, ln, e.key);
+            const std::string u = lower(unit);
+            if (u == "kpa") v *= 1.0e3;
+            else if (u == "mpa") v *= 1.0e6;
+            else if (u == "bar") v *= 1.0e5;
+            else if (u == "atm") v *= 101325.0;
+            else if (u == "torr") v *= 101325.0 / 760.0;
+            else if (!u.empty() && u != "pa") fail(ln, "pressure unit must be Pa, kPa, MPa, bar, atm or Torr");
+            if (!(v > 0.0)) fail(ln, "pressure must be positive");
+            s.input.pressure = v;
+        } else if (k == "opt_convergence") {
+            const std::string c = lower(value);
+            if (c != "normal" && c != "tight") fail(ln, "opt_convergence must be normal or tight, got '" + value + "'");
+            s.input.optConvergence = c;
+        } else if (k == "max_steps") {
+            const double t = parse_number(value, ln, e.key);
+            if (t != std::floor(t) || t < 1 || t > 1000) fail(ln, "max_steps must be an integer from 1 to 1000");
+            s.input.maxSteps = static_cast<int>(t);
         }
+    }
+    if (!heh) {
+        const std::string job = macqc::canonical_job_type(s.input.job);
+        auto job_only = [&](const char* key, bool allowed, const std::string& jobs) {
+            auto it = entries.find(key);
+            if (it != entries.end() && !allowed)
+                fail(it->second.line, "'" + it->second.key + "' applies to job = " + jobs + " only (job = " + job + ")");
+        };
+        job_only("sp_method", macqc::job_has_single_point(job), "opt+freq+sp");
+        job_only("sp_basis", macqc::job_has_single_point(job), "opt+freq+sp");
+        job_only("temperature", macqc::job_has_frequencies(job), "freq, opt+freq and opt+freq+sp");
+        job_only("pressure", macqc::job_has_frequencies(job), "freq, opt+freq and opt+freq+sp");
+        job_only("opt_convergence", macqc::job_has_optimization(job), "opt, opt+freq and opt+freq+sp");
+        job_only("max_steps", macqc::job_has_optimization(job), "opt, opt+freq and opt+freq+sp");
     }
     if (!heh && !s.rGiven) s.input.R = macqc::default_bond_length(molecule);
     const std::string problem = macqc::validate(s.input);
     if (!problem.empty()) throw std::runtime_error(problem);
+    s.sourceText = text;
     return s;
 }
 
@@ -408,7 +427,15 @@ std::string estimate_text(const Settings& settings) {
     if (!out.molecular) return "Error: " + out.error + "\n";
     const auto& e = out.molecular->estimate;
     std::string t = out.report;
-    t += format("Estimated wall time: %.0f s on %d threads (rough estimate)\n", e.total_seconds, e.threads);
+    const std::string job = macqc::canonical_job_type(in.job);
+    if (job == "energy" || !out.job) {
+        t += format("Estimated wall time: %.0f s on %d threads (rough estimate)\n", e.total_seconds, e.threads);
+        return t;
+    }
+    t += "\nJob: " + macqc::job_title(job) + " (" + job + ")\n";
+    t += macqc::job_estimate_text(*out.molecular, out.job->estimate);
+    t += format("Estimated wall time: %.0f s on %d threads (rough estimate)\n", out.job->estimate.total_seconds, e.threads);
+    if (!out.job->estimate.refusal.empty()) t = "Error: " + out.job->estimate.refusal + "\n\n" + t;
     return t;
 }
 
@@ -419,24 +446,27 @@ std::vector<std::string> estimate_warnings(const Settings& settings) {
     in.printLevel = 0;
     const macqc::Output out = macqc::run_calculation(in);
     if (!out.molecular) return {};
-    return out.molecular->warnings;
+    std::vector<std::string> w = out.molecular->warnings;
+    if (out.job && macqc::canonical_job_type(in.job) != "energy") {
+        w.clear();  // the job estimate covers the whole job (e.g. "long calculation")
+        for (const auto& x : out.molecular->warnings)
+            if (x.rfind("Long calculation", 0) != 0) w.push_back(x);
+        for (const auto& x : out.job->estimate.warnings) w.push_back(x);
+    }
+    return w;
 }
 
-RunResult run_to_text(const Settings& settings) {
+RunResult run_to_text(const Settings& settings, const macqc::OutputSink& sink) {
     RunResult result;
     macqc::Input in = settings.input;
     in.printLevel = 2;
     if (!macqc::is_heh_input(in)) {
-        macqc::Output out = macqc::run_calculation(in);
+        in.echo = input_echo_text(settings);
+        macqc::Output out = macqc::run_calculation(in, sink);
         result.output = out;
-        if (!out.molecular || !out.molecular->rhf) {
-            result.error = out.error.empty() ? "no result" : out.error;
-            return result;
-        }
         result.error = out.error;
-        const std::string rule(78, '=');
-        result.text = general_summary(out) + "\n\n" + rule + "\nDETAILED REPORT\n" + rule + "\n" + out.report;
-        if (result.text.back() != '\n') result.text += "\n";
+        if (out.job) result.text = out.job->output;
+        if (result.text.empty() && result.error.empty()) result.error = "no result";
         return result;
     }
     macqc::Output out = macqc::run_calculation(in);

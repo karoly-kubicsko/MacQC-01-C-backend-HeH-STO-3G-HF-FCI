@@ -35,6 +35,8 @@ add_library(macqc STATIC
   backend/src/constants.cpp
   backend/src/frequencies.cpp
   backend/src/hessian.cpp
+  backend/src/output.cpp
+  backend/src/jobs.cpp
   backend/src/rhf.cpp
   backend/src/molecular.cpp
   backend/src/gemm.cpp
@@ -150,4 +152,14 @@ target_compile_definitions(macqc_frequency_tests PRIVATE
   MACQC_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/backend/tests/data")
 add_test(NAME macqc_frequency_tests COMMAND macqc_frequency_tests)
 set_tests_properties(macqc_frequency_tests PROPERTIES
+  ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 7200)
+
+# ΨLab 5.0 job types, output file and C API (streaming, cancellation, refusals)
+add_executable(macqc_job_tests backend/tests/test_jobs.cpp)
+target_link_libraries(macqc_job_tests PRIVATE macqc)
+target_include_directories(macqc_job_tests PRIVATE third_party)
+target_compile_definitions(macqc_job_tests PRIVATE
+  MACQC_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/backend/tests/data")
+add_test(NAME macqc_job_tests COMMAND macqc_job_tests)
+set_tests_properties(macqc_job_tests PROPERTIES
   ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 7200)

@@ -5,6 +5,7 @@
 #include <string>
 
 #include "macqc/fci.h"
+#include "macqc/jobs.h"
 #include "macqc/molecular.h"
 #include "macqc/scf.h"
 
@@ -38,6 +39,16 @@ struct Input {
     double energyConvergence = 1.0e-10;
     double gradientConvergence = 1.0e-7;
     bool estimateOnly = false;          // only molecule, basis, size and time estimate, warnings
+
+    // ΨLab 5.0 job types (general molecules).
+    std::string job = "energy";         // energy | opt | freq | opt+freq | opt+freq+sp
+    std::string spMethod;               // opt+freq+sp: method of the single point ("": method)
+    std::string spBasis;                // opt+freq+sp: basis set of the single point ("": basis)
+    double temperature = 298.15;        // K (frequency jobs)
+    double pressure = 101325.0;         // Pa (frequency jobs)
+    std::string optConvergence = "normal";  // normal | tight
+    int maxSteps = 50;                  // optimisation steps
+    std::string echo;                   // input text for the output file ("": generated from the keys)
 };
 
 // True if the input selects the HeH+ STO-nG calculation of versions 1 and 2.
@@ -50,14 +61,19 @@ struct Output {
     std::optional<FCIResult> fci;
     std::string hf_report;   // HF part only (as printed by the reference program)
     std::string report;      // hf_report + FCI section (general molecules: their report)
-    std::optional<MolecularResult> molecular;  // general molecules only
+    std::optional<MolecularResult> molecular;  // general molecules only (the final energy calculation)
+    std::optional<JobResult> job;              // general molecules (5.0): the job and its output file
 };
 
 // Returns an empty string if the input is valid, else a message.
 std::string validate(const Input& in);
 
-// Never throws; problems are reported through Output::error.
-Output run_calculation(const Input& in);
+// Never throws; problems are reported through Output::error. General molecules: the output
+// file is passed to `sink` piece by piece while the job runs (it is also in Output::job->output).
+Output run_calculation(const Input& in, const OutputSink& sink = OutputSink());
+
+// The input as "key = value" lines (for the output file).
+std::string input_echo(const Input& in);
 
 // Parse input JSON text (missing keys take defaults). Throws std::runtime_error
 // with a descriptive message on malformed input.
