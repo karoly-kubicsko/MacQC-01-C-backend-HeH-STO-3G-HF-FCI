@@ -473,7 +473,7 @@ static void test_api() {
                          R"({"molecule":"H2O","angle":200})",
                          R"({"molecule":"H2","R":-1})",
                          R"({"molecule":"H2","R":0.1})",
-                         R"({"molecule":"H2","method":"CCSD"})",
+                         R"({"molecule":"H2","method":"MP2"})",
                          R"({"molecule":"H2","threads":-2})",
                          R"({"molecule":"H2","basis":7})",
                          R"({"molecule":"H2","basisDirectory":"/nonexistent"})"};

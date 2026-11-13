@@ -94,7 +94,10 @@ int main() {
     CHECK(rejects("angle = 100\n", "applies to H2O only"));
     CHECK(rejects("method = RHF\n", "HeH+ always runs Hartree-Fock and Full CI"));
     CHECK(rejects("molecule = H2O\nbasis = STO-3G\n", "basis must be one of aug-cc-pVDZ"));
-    CHECK(rejects("molecule = H2\nmethod = CCSD\n", "method must be RHF or FCI"));
+    CHECK(rejects("molecule = H2\nmethod = MP2\n", "method must be HF (RHF), CCSD, CCSD(T), CCSDT, CCSDTQ or FCI"));
+    CHECK(psilab::parse_input_text("molecule = H2\nmethod = ccsd(t)\n").input.method == "CCSD(T)");
+    CHECK(psilab::parse_input_text("molecule = H2\nmethod = HF\n").input.method == "RHF");
+    CHECK(psilab::parse_input_text("molecule = LiH\nmethod = CCSDTQ\n").input.method == "CCSDTQ");
     CHECK(rejects("molecule = H2\nfci_memory = 1 PB\n", "fci_memory unit"));
     const psilab::Settings fs = psilab::parse_input_text("molecule = H2\nmethod = Full-CI\nfci_memory = 2 GB\n");
     CHECK(fs.input.method == "FCI" && fs.input.fciMemoryMB == 2048.0);
@@ -118,6 +121,13 @@ int main() {
     CHECK(contains(h2fci.text, "total energy:         -1.1646244795 E_h"));
     CHECK(contains(h2fci.text, "determinants:         324 (18 orbitals, 2 electrons)"));
     CHECK(contains(h2fci.text, "Natural orbital occupation numbers"));
+    // Coupled cluster: CCSD(T) for H2O (PySCF: -76.2760053269 E_h).
+    const psilab::RunResult h2occ =
+        psilab::run_to_text(psilab::parse_input_text("molecule = H2O\nbasis = aug-cc-pVDZ\nmethod = CCSD(T)\n"));
+    CHECK(h2occ.error.empty());
+    CHECK(contains(h2occ.text, "H2O, CCSD(T)/aug-cc-pVDZ"));
+    CHECK(contains(h2occ.text, "total energy:         -76.2760053269 E_h"));
+    CHECK(contains(h2occ.text, "(T) correction"));
     const psilab::RunResult h2ofci = psilab::run_to_text(psilab::parse_input_text("molecule = H2O\nmethod = FCI\n"));
     CHECK(h2ofci.text.empty() && contains(h2ofci.error, "impossible"));
     CHECK(contains(psilab::estimate_text(psilab::parse_input_text("molecule = LiH\nbasis = aug-cc-pVQZ\nmethod = FCI\n")),

@@ -31,6 +31,7 @@ add_library(macqc STATIC
   backend/src/ci.cpp
   backend/src/cc_general.cpp
   backend/src/cc_closed_shell.cpp
+  backend/src/cc_estimate.cpp
   backend/src/job.cpp
   backend/src/calculation.cpp
   backend/src/api.cpp)

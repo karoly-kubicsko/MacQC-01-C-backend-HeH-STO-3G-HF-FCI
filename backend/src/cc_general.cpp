@@ -971,6 +971,8 @@ CCResult run_cc_spin_orbital(const MOIntegrals& mo, int nocc, int max_rank, doub
     res.engine = "spin-orbital, general order";
     res.occupied = o;
     res.virtuals = v;
+    res.amplitude_tol = opt.amplitude_tol;
+    res.energy_tol = opt.energy_tol;
     res.reference_energy = reference_energy_from_mo(mo, o, nuclear_repulsion);
     res.amplitude_counts.assign(static_cast<std::size_t>(max_rank) + 1, 0.0);
     for (int r = 1; r <= max_rank; ++r)

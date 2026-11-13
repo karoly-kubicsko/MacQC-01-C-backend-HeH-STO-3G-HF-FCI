@@ -38,7 +38,7 @@ struct CCOptions {
     double eri_memory_mb = 1024.0;    // AO integrals of the ladder kept in memory up to this size
     int max_iter = 100;
     double energy_tol = 1.0e-10;      // |E_n - E_(n-1)| (E_h)
-    double amplitude_tol = 1.0e-7;    // largest |t_new - t| of the Jacobi step
+    double amplitude_tol = 1.0e-8;    // largest |t_new - t| of the Jacobi step
     int diis_size = 8;
 };
 
@@ -75,6 +75,7 @@ struct CCResult {
     std::vector<CCAmplitude> leading;   // largest |t| first (one of each spin-equivalent set)
     std::vector<CCIteration> history;
     std::string ladder;                 // closed-shell engine: how the (vv|vv) ladder was evaluated
+    double amplitude_tol = 0.0, energy_tol = 0.0;  // convergence thresholds used
     double transform_seconds = 0.0, cc_seconds = 0.0, triples_seconds = 0.0;
 };
 
@@ -99,6 +100,32 @@ struct SpinOrbitalCCCost {
     double vector_bytes = 0.0;         // one amplitude vector (for DIIS)
 };
 SpinOrbitalCCCost estimate_cc_spin_orbital(int nocc, int nvir, int max_rank);
+
+// ---- size, memory and time of a calculation -------------------------------------------
+
+struct CCSize {
+    std::string method;            // "CCSD", "CCSD(T)", "CCSDT", "CCSDTQ"
+    std::string engine;            // "closed-shell, spin-adapted" or "spin-orbital, general order"
+    int occupied = 0, virtuals = 0;
+    double amplitudes = 0.0;       // stored amplitudes (closed shell: spatial; spin-orbital: packed)
+    double memory_bytes = 0.0;     // peak, estimated
+    bool ladder_stored = false;    // closed shell: AO integrals of the ladder kept in memory
+    int iterations = 0;            // expected number of iterations
+    double transform_seconds = 0.0, iteration_seconds = 0.0, triples_seconds = 0.0;
+    double seconds = 0.0;          // transformation + iterations + (T)
+    bool feasible = true;
+    std::string reason;            // why not feasible
+};
+
+// Estimate for nocc occupied orbitals, nmo molecular orbitals and nbasis AO functions.
+// unique_eris: number of unique AO integrals; eri_pass_seconds: time of one pass over the
+// AO integrals (from the RHF estimate). Not feasible above memory_limit_mb or above
+// kMaxCCSeconds.
+CCSize estimate_cc(CCMethod method, int nocc, int nmo, int nbasis, double unique_eris, double eri_pass_seconds,
+                   int threads, double memory_limit_mb, double eri_memory_mb);
+
+// Calculations estimated to take longer than this are refused (three days).
+constexpr double kMaxCCSeconds = 3.0 * 86400.0;
 
 // ---- closed-shell engine ---------------------------------------------------------------
 

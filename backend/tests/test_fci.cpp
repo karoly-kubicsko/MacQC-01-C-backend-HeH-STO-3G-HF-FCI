@@ -325,7 +325,7 @@ static void test_limits_and_api() {
 
     const json big = run_json(R"({"molecule":"LiH","basis":"aug-cc-pCVTZ","method":"FCI","estimateOnly":true,"threads":4})");
     CHECK(big["refusal"].is_null() && big["estimate"]["longCalculation"].get<bool>() && big["warnings"].size() == 1);
-    CHECK(run_json(R"({"molecule":"H2","method":"CCSD"})")["error"].is_string());
+    CHECK(run_json(R"({"molecule":"H2","method":"MP2"})")["error"].is_string());
 }
 
 int main() {

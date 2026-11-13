@@ -14,7 +14,10 @@
 #include <string>
 #include <vector>
 
+#include "macqc/calculation.h"
 #include "macqc/cc.h"
+#include "macqc/macqc_api.h"
+#include "macqc/molecular.h"
 #include "macqc/mo_integrals.h"
 #include "nlohmann/json.hpp"
 
@@ -121,11 +124,104 @@ static void test_closed_shell(const std::vector<Case>& cases) {
     }
 }
 
+static MolecularResult run(const std::string& molecule, const std::string& basis, const std::string& method) {
+    MolecularInput in;
+    in.molecule = molecule;
+    in.basis = basis;
+    in.method = method;
+    in.print_level = 1;
+    MolecularResult r = prepare_molecular(in);
+    if (!r.refusal.empty()) throw std::runtime_error(r.refusal);
+    run_molecular(r);
+    return r;
+}
+
+// CCSD and CCSD(T) through the driver (AO-driven ladder) against PySCF.
+static void test_molecules_pyscf() {
+    std::printf("-- CCSD and CCSD(T) against PySCF (cc_molecules_reference.json)\n");
+    const json data = json::parse(read_file(std::string(MACQC_TEST_DATA_DIR) + "/cc_molecules_reference.json"));
+    for (const json& c : data["cases"]) {
+        const std::string mol = c["molecule"], basis = c["basis"];
+        const MolecularResult r = run(mol, basis, "CCSD(T)");
+        CHECK(r.cc && r.cc->converged && r.cc->has_triples);
+        check_near(mol + "/" + basis + " RHF", r.rhf->total_energy, c["rhf_energy"].get<double>(), 2e-9);
+        check_near(mol + "/" + basis + " CCSD", r.cc->cc_energy, c["ccsd_energy"].get<double>(), 2e-9);
+        check_near(mol + "/" + basis + " CCSD(T)", r.cc->total_energy, c["ccsd_t_energy"].get<double>(), 2e-9);
+    }
+}
+
+// CCSDT and CCSDTQ through the driver: exact for two and four electrons.
+static void test_molecules_exact() {
+    std::printf("-- CCSDT/CCSDTQ equal Full CI for H2 and LiH (fci_reference.json)\n");
+    const json data = json::parse(read_file(std::string(MACQC_TEST_DATA_DIR) + "/fci_reference.json"));
+    auto fci = [&](const std::string& m, const std::string& b) {
+        for (const json& c : data["cases"])
+            if (c["molecule"] == m && c["basis"] == b) return c["fci_energy"].get<double>();
+        throw std::runtime_error("no Full CI reference for " + m + "/" + b);
+    };
+    for (const char* method : {"CCSD", "CCSDT", "CCSDTQ"}) {
+        const MolecularResult r = run("H2", "aug-cc-pVDZ", method);
+        CHECK(r.cc && r.cc->converged);
+        check_near(std::string("H2/aug-cc-pVDZ ") + method + " = FCI", r.cc->total_energy, fci("H2", "aug-cc-pVDZ"), 2e-9);
+    }
+    const MolecularResult t = run("LiH", "aug-cc-pVDZ", "CCSDT");
+    CHECK(t.cc && t.cc->converged);
+    const double e_fci = fci("LiH", "aug-cc-pVDZ");
+    // CCSDT lies within 0.05 mE_h of Full CI for LiH; CCSDTQ is exact.
+    CHECK(std::fabs(t.cc->total_energy - e_fci) < 5e-5 && std::fabs(t.cc->total_energy - e_fci) > 1e-9);
+    std::printf("     LiH/aug-cc-pVDZ CCSDT - FCI = %.3e E_h\n", t.cc->total_energy - e_fci);
+    const MolecularResult q = run("LiH", "aug-cc-pVDZ", "CCSDTQ");
+    CHECK(q.cc && q.cc->converged);
+    check_near("LiH/aug-cc-pVDZ CCSDTQ = FCI", q.cc->total_energy, e_fci, 2e-9);
+    CHECK(q.report.find("CCSDTQ energies") != std::string::npos);
+}
+
+// Estimates, refusals, notes and the JSON API.
+static void test_api() {
+    std::printf("-- estimates, refusals and the JSON API\n");
+    {
+        MolecularInput in;
+        in.molecule = "H2O";
+        in.basis = "aug-cc-pVTZ";
+        in.method = "CCSDTQ";
+        const MolecularResult r = prepare_molecular(in);
+        CHECK(!r.refusal.empty() && r.refusal.find("CCSDTQ is not possible") != std::string::npos);
+        CHECK(r.estimate.cc && !r.estimate.cc->feasible);
+        in.method = "ccsd(t)";
+        const MolecularResult s = prepare_molecular(in);
+        CHECK(s.refusal.empty() && s.input.method == "CCSD(T)" && s.estimate.cc && s.estimate.cc->feasible);
+        in.molecule = "H2";
+        in.method = "CCSDT";
+        const MolecularResult h = prepare_molecular(in);
+        CHECK(!h.notes.empty() && h.notes.back().find("two electrons") != std::string::npos);
+        in.method = "MP2";
+        CHECK(validate_molecular(in).find("CCSDTQ") != std::string::npos);
+    }
+    char* out = macqc_run(R"json({"molecule":"LiH","basis":"aug-cc-pVDZ","method":"CCSD(T)"})json");
+    const json j = json::parse(out);
+    macqc_free(out);
+    CHECK(j["error"].is_null());
+    CHECK(j["coupledCluster"].is_object());
+    CHECK(j["coupledCluster"]["method"] == "CCSD(T)");
+    CHECK(j["coupledCluster"]["triplesCorrection"].is_number());
+    CHECK(j["estimate"]["coupledCluster"]["feasible"] == true);
+    CHECK(j["fullCI"].is_null());
+    check_near("LiH/aug-cc-pVDZ CCSD(T) via JSON", j["coupledCluster"]["totalEnergy"].get<double>(), -8.0212069372, 2e-9);
+    char* est = macqc_run(R"json({"molecule":"H2O","basis":"aug-cc-pVDZ","method":"CCSDT","estimateOnly":true})json");
+    const json e = json::parse(est);
+    macqc_free(est);
+    CHECK(e["estimate"]["coupledCluster"]["engine"] == "spin-orbital, general order");
+    CHECK(e["coupledCluster"].is_null() && e["rhf"].is_null());
+}
+
 int main() {
     try {
         const std::vector<Case> cases = load_cases();
         test_spin_orbital_engine(cases);
         test_closed_shell(cases);
+        test_molecules_pyscf();
+        test_molecules_exact();
+        test_api();
     } catch (const std::exception& e) {
         std::printf("FAIL exception: %s\n", e.what());
         ++g_failures;

@@ -1045,6 +1045,8 @@ CCResult run_ccsd_closed_shell(const CCIntegrals& ints, LadderOperator& ladder, 
     res.ladder = ladder.description();
     res.occupied = ints.o;
     res.virtuals = ints.v;
+    res.amplitude_tol = opt.amplitude_tol;
+    res.energy_tol = opt.energy_tol;
     res.reference_energy = reference_energy;
     res.amplitude_counts = {0.0, static_cast<double>(o * v), static_cast<double>(o * o * v * v)};
     report_progress(JobStage::CoupledCluster);
