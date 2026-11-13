@@ -81,6 +81,9 @@ jobs:
       - name: RHF gradients, Hessians and dipole moments (cases up to 110 basis functions)
         run: python3 reference/pyscf_gradient_reference.py --check --max-nbf 110
 
+      - name: CCSD, CCSD(T) and Full CI gradients (H2, LiH, H2O)
+        run: python3 reference/pyscf_correlated_gradient_reference.py --check
+
   # On request only: every RHF reference case, including H2O/aug-cc-pCV5Z (341 functions), and
   # every Full CI case, including LiH/aug-cc-pCVTZ (11 million determinants).
   rhf-full:
@@ -93,7 +96,7 @@ jobs:
       - name: Build
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-          cmake --build build --parallel --target macqc_rhf_tests macqc_fci_tests macqc_gradient_tests
+          cmake --build build --parallel --target macqc_rhf_tests macqc_fci_tests macqc_gradient_tests macqc_correlated_gradient_tests
 
       - name: All RHF cases against PySCF
         env:
@@ -112,3 +115,9 @@ jobs:
           PSILAB_TEST_MAX_NBF: "400"
           PSILAB_BASIS_DIR: ${{ github.workspace }}/basis
         run: ./build/macqc_gradient_tests
+
+      - name: Correlated gradients, triple-zeta cases
+        env:
+          PSILAB_TEST_MAX_NBF: "400"
+          PSILAB_BASIS_DIR: ${{ github.workspace }}/basis
+        run: ./build/macqc_correlated_gradient_tests

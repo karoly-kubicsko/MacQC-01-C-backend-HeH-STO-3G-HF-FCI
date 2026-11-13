@@ -60,6 +60,11 @@ struct RHFOptions {
     int diis_size = 8;
     int threads = 0;                // 0: all hardware threads
     double memory_limit_mb = 1024;  // for storing the two-electron integrals
+    // Optional starting orbitals (AO x MO coefficients of a nearby geometry, same basis):
+    // the occupied ones are orthonormalised in the current overlap metric and give the
+    // starting density instead of the core-Hamiltonian guess (geometry optimisations,
+    // finite differences).
+    const Matrix* guess_orbitals = nullptr;
 };
 
 struct RHFIteration {
@@ -96,6 +101,7 @@ struct RHFResult {
     int threads = 1;
     double integral_seconds = 0.0;  // one-electron + stored ERIs (or Schwarz setup)
     double scf_seconds = 0.0;
+    bool guess_from_orbitals = false;  // the SCF started from RHFOptions::guess_orbitals
 };
 
 // Progress callback: called after each SCF iteration (may be empty).

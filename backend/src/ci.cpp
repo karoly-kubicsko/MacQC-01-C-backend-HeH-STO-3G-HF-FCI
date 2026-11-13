@@ -769,8 +769,102 @@ FCIResultGeneral run_fci_determinants(const MOIntegrals& mo, int na, int nb, dou
         const EigenResult ne = symmetric_eigen(total);
         r.natural_occupations.assign(ne.values.rbegin(), ne.values.rend());
     }
+    if (opt.keep_vector) r.vector = x;
     r.ci_seconds = seconds_since(t0);
     return r;
+}
+
+double fci_density_bytes(int n, int na) {
+    const double n2 = static_cast<double>(n) * n;
+    const double m1 = na >= 1 ? binomial_count(n, na - 1) : 0.0;
+    const double m2 = na >= 2 ? binomial_count(n, na - 2) : 0.0;
+    const double full = binomial_count(n, na);
+    const double a = n2 * m1 * m1, b = n2 * m2 * full;
+    return 8.0 * (std::max(a, b) + n2 * n2 + static_cast<double>(Packed4::size_for(static_cast<std::size_t>(n))));
+}
+
+CorrelatedDensity fci_densities(int n_orbitals, int na, int nb, const std::vector<double>& x, int threads) {
+    if (na != nb) throw std::invalid_argument("fci_densities: closed shell (n_alpha == n_beta) only");
+    const int nt = resolve_threads(threads);
+    const std::size_t n = static_cast<std::size_t>(n_orbitals), n2 = n * n;
+    const StringSpace S(n_orbitals, na);
+    const std::size_t Ns = S.size();
+    if (x.size() != Ns * Ns) throw std::invalid_argument("fci_densities: CI vector has the wrong length");
+    CorrelatedDensity d;
+    d.D = Matrix(n, n);
+    d.G = Packed4(n);
+    // ---- one-particle density: D = <E_pq> = 2 <a+_p,alpha a_q,alpha>
+    {
+        const Lists<Excitation> ex = single_excitations(S);
+        Matrix g(n, n);
+        for (std::size_t J = 0; J < Ns; ++J) {
+            const double* cj = x.data() + J * Ns;
+            for (const Excitation* e = ex.begin(J); e != ex.end(J); ++e) {
+                const double* ci = x.data() + static_cast<std::size_t>(e->target) * Ns;
+                double s = 0.0;
+                for (std::size_t b = 0; b < Ns; ++b) s += ci[b] * cj[b];
+                g(e->p, e->q) += e->sign * s;
+            }
+        }
+        for (std::size_t p = 0; p < n; ++p)
+            for (std::size_t q = 0; q < n; ++q) d.D(p, q) = g(p, q) + g(q, p);
+    }
+    if (na == 0) return d;
+    // dm2 (spin-summed) accumulated as G = dm2 / 2 into the packed array.
+    auto add_block = [&](const std::vector<double>& M, double f, bool swap_pairs) {
+        // M[(p n + r)][(q n + s)]; term f * M_pq,rs (or M_rs,pq)
+        for (std::size_t p = 0; p < n; ++p)
+            for (std::size_t q = 0; q < n; ++q)
+                for (std::size_t r = 0; r < n; ++r)
+                    for (std::size_t s = 0; s < n; ++s) {
+                        const double val = swap_pairs ? M[(r * n + p) * n2 + s * n + q] : M[(p * n + r) * n2 + q * n + s];
+                        if (val != 0.0) d.G.add_raw(p, q, r, s, 0.5 * f * val);
+                    }
+    };
+    const StringSpace S1(n_orbitals, na - 1);
+    const std::size_t M1 = S1.size();
+    const Lists<Hop> ann = annihilations(S, S1);
+    // ---- opposite spin: A_xy(Ka, Kb) = <Ka Kb| a_y,beta a_x,alpha |Psi>
+    {
+        std::vector<double> A(n2 * M1 * M1, 0.0);
+        for (std::size_t Ia = 0; Ia < Ns; ++Ia) {
+            check_cancelled();
+            for (const Hop* ha = ann.begin(Ia); ha != ann.end(Ia); ++ha)
+                for (std::size_t Ib = 0; Ib < Ns; ++Ib) {
+                    const double c = x[Ia * Ns + Ib];
+                    if (c == 0.0) continue;
+                    for (const Hop* hb = ann.begin(Ib); hb != ann.end(Ib); ++hb)
+                        A[((static_cast<std::size_t>(ha->orb) * n + hb->orb) * M1 + ha->target) * M1 + hb->target] +=
+                            ha->sign * hb->sign * c;
+                }
+        }
+        std::vector<double> Gab(n2 * n2, 0.0);
+        gemm(false, true, n2, n2, M1 * M1, 1.0, A.data(), M1 * M1, A.data(), M1 * M1, 0.0, Gab.data(), n2, nt);
+        // Gamma^ab_pqrs = Gab[(p,r)][(q,s)]; Gamma^ba_pqrs = Gamma^ab_rspq
+        add_block(Gab, 1.0, false);
+        add_block(Gab, 1.0, true);
+    }
+    // ---- same spin: B_xy(K2, Ib) = <K2| a_y a_x |Ia> C(Ia, Ib) (alpha; beta is equal)
+    if (na >= 2) {
+        const StringSpace S2(n_orbitals, na - 2);
+        const std::size_t M2 = S2.size();
+        const Lists<Hop> ann2 = annihilations(S1, S2);
+        std::vector<double> B(n2 * M2 * Ns, 0.0);
+        for (std::size_t Ia = 0; Ia < Ns; ++Ia) {
+            check_cancelled();
+            const double* c = x.data() + Ia * Ns;
+            for (const Hop* h1 = ann.begin(Ia); h1 != ann.end(Ia); ++h1)
+                for (const Hop* h2 = ann2.begin(h1->target); h2 != ann2.end(h1->target); ++h2) {
+                    const double sg = h1->sign * h2->sign;
+                    double* row = B.data() + ((static_cast<std::size_t>(h1->orb) * n + h2->orb) * M2 + h2->target) * Ns;
+                    for (std::size_t Ib = 0; Ib < Ns; ++Ib) row[Ib] += sg * c[Ib];
+                }
+        }
+        std::vector<double> Gaa(n2 * n2, 0.0);
+        gemm(false, true, n2, n2, M2 * Ns, 1.0, B.data(), M2 * Ns, B.data(), M2 * Ns, 0.0, Gaa.data(), n2, nt);
+        add_block(Gaa, 2.0, false);  // alpha-alpha + beta-beta
+    }
+    return d;
 }
 
 }  // namespace macqc

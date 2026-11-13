@@ -1092,6 +1092,8 @@ CCResult run_ccsd_closed_shell(const CCIntegrals& ints, LadderOperator& ladder, 
     res.cc_energy = reference_energy + res.correlation_energy;
     res.total_energy = res.cc_energy;
     res.cc_seconds = seconds_since(t0);
+    res.t1 = t.t1;
+    res.t2 = t.t2;
 
     // Amplitude analysis (spatial amplitudes; t2 is the alpha-beta amplitude).
     double s1 = 0.0, s2 = 0.0;

@@ -17,6 +17,7 @@
 #include <string>
 #include <vector>
 
+#include "macqc/correlated_gradient.h"
 #include "macqc/mo_integrals.h"
 
 namespace macqc {
@@ -63,6 +64,7 @@ FCISize estimate_fci(int n_orbitals, int n_basis, int n_alpha, int n_beta, int t
                      double eri_pass_seconds);
 
 struct FCIOptions {
+    bool keep_vector = false;  // return the CI vector (for density matrices and gradients)
     int threads = 0;
     double memory_limit_mb = 4096.0;
     int max_iter = 100;
@@ -97,6 +99,7 @@ struct FCIResultGeneral {
     std::vector<double> natural_occupations;      // descending, sum = number of electrons
     std::vector<FCIIteration> history;
     double transform_seconds = 0.0, ci_seconds = 0.0;
+    std::vector<double> vector;   // normalised CI vector C(I_alpha, I_beta), if FCIOptions::keep_vector
     bool dense_integrals = false;  // (ij|kl) as an n^2 x n^2 matrix for the matrix products
 };
 
@@ -106,5 +109,16 @@ using FCIProgress = std::function<void(const FCIIteration&)>;
 FCIResultGeneral run_fci_determinants(const MOIntegrals& mo, int n_alpha, int n_beta, double nuclear_repulsion,
                                       double rhf_energy, const FCIOptions& options,
                                       const FCIProgress& progress = FCIProgress());
+
+// One- and two-particle density matrices of a normalised CI vector (n_alpha == n_beta,
+// singlet, C = C^T) in the form of correlated_gradient: D_pq = <E_pq>, and
+// G_pqrs = 1/2 sum_{st} <a+_ps a+_rt a_st a_qs> (symmetrised), so that
+// E = sum D h + sum G (pq|rs) + V_nn. The opposite-spin part uses the (N-1)-electron
+// intermediates A_xy(K) = <K| a_y,beta a_x,alpha |Psi>, the same-spin part the (N-2)-electron
+// ones; each is one matrix product.
+CorrelatedDensity fci_densities(int n_orbitals, int n_alpha, int n_beta, const std::vector<double>& vector,
+                                int threads = 0);
+// Memory (bytes) of fci_densities.
+double fci_density_bytes(int n_orbitals, int n_alpha);
 
 }  // namespace macqc
