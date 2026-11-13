@@ -21,7 +21,8 @@ enum class JobStage : int {
     Triples = 7,         // (T) correction; iteration = percent done
     Gradient = 8,        // analytic gradient (iteration = part)
     Hessian = 9,         // analytic Hessian: derivative integrals (iteration = part)
-    CPHF = 10            // coupled-perturbed HF / orbital response (iteration, residual)
+    CPHF = 10,           // coupled-perturbed HF / orbital response (iteration, residual)
+    Lambda = 11          // coupled-cluster Lambda equations (iteration, residual)
 };
 
 struct Job {

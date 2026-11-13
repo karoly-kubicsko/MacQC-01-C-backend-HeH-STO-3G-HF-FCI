@@ -394,11 +394,36 @@ RHFResult run_rhf(const Molecule& mol, const BasisSet& basis, const RHFOptions& 
         eps = e.values;
     };
 
-    // Core-Hamiltonian guess.
+    // Core-Hamiltonian guess, or the occupied orbitals of a nearby geometry (Loewdin
+    // orthonormalised in the current metric).
     Matrix C;
     std::vector<double> eps;
     diagonalize(H, C, eps);
     Matrix P = density(C, nocc);
+    if (opt.guess_orbitals && opt.guess_orbitals->rows() == n &&
+        opt.guess_orbitals->cols() >= static_cast<std::size_t>(nocc)) {
+        Matrix Co(n, static_cast<std::size_t>(nocc));
+        for (std::size_t i = 0; i < n; ++i)
+            for (int k = 0; k < nocc; ++k) Co(i, static_cast<std::size_t>(k)) = (*opt.guess_orbitals)(i, static_cast<std::size_t>(k));
+        const Matrix M = mtm(Co, mm(S, Co));  // Co' S Co
+        const EigenResult me = symmetric_eigen(M);
+        bool ok = !me.values.empty() && me.values.front() > 1.0e-6;
+        if (ok) {
+            Matrix Mh(static_cast<std::size_t>(nocc), static_cast<std::size_t>(nocc));  // M^-1/2
+            for (int a = 0; a < nocc; ++a)
+                for (int b = 0; b < nocc; ++b) {
+                    double s = 0.0;
+                    for (int k = 0; k < nocc; ++k)
+                        s += me.vectors(static_cast<std::size_t>(a), static_cast<std::size_t>(k)) *
+                             me.vectors(static_cast<std::size_t>(b), static_cast<std::size_t>(k)) /
+                             std::sqrt(me.values[static_cast<std::size_t>(k)]);
+                    Mh(static_cast<std::size_t>(a), static_cast<std::size_t>(b)) = s;
+                }
+            const Matrix Cn = mm(Co, Mh);
+            P = density(Cn, nocc);
+            r.guess_from_orbitals = true;
+        }
+    }
 
     std::vector<Matrix> diis_f, diis_e;
     Matrix G(n, n), P_built(n, n);

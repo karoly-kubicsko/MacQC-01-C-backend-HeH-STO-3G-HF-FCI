@@ -77,6 +77,8 @@ struct CCResult {
     std::string ladder;                 // closed-shell engine: how the (vv|vv) ladder was evaluated
     double amplitude_tol = 0.0, energy_tol = 0.0;  // convergence thresholds used
     double transform_seconds = 0.0, cc_seconds = 0.0, triples_seconds = 0.0;
+    // Closed-shell engine: the converged amplitudes t1[i][a], t2[i][j][a][b] (for gradients).
+    std::vector<double> t1, t2;
 };
 
 using CCProgress = std::function<void(const CCIteration&)>;

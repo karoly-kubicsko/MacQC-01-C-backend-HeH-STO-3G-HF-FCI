@@ -439,6 +439,60 @@ Verification (`backend/tests/test_gradients.cpp`, run by CTest; PySCF values fro
 Timings with 4 threads (2.1 GHz x86-64): H₂O/aug-cc-pVTZ gradient 1.2 s, Hessian 7 s;
 H₂O/aug-cc-pVQZ gradient 10 s, Hessian 73 s (61 s derivative integrals, 12 s CPHF).
 
+#### Correlated gradients (stage 2)
+
+The gradients of CCSD, CCSD(T) and Full CI are analytic; CCSDT and CCSDTQ are differentiated
+numerically (`gradient.cpp`, `correlated_gradient.cpp`, `cc_gradient.cpp`, `ci.cpp`).
+
+- **Relaxed densities** (`correlated_gradient.cpp`): a method supplies its one- and
+  two-particle response densities D and G in the RHF orbitals (E = Σ D h + Σ G (pq|rs) + V_nn,
+  every Fock-matrix dependence written through h and (pq|rs)). ΨLab forms the orbital Lagrangian
+  X_tp = 2 Σ h_tq D_qp + 4 Σ (tq|rs) G_pqrs, solves one Z-vector (CPHF) equation for the
+  occupied–virtual orbital response, back-transforms G to the AO basis (stored once per
+  8-fold-symmetric index class) and contracts everything with the derivative integrals of stage 1.
+  The same relaxed density gives the relaxed dipole moment. The methods are invariant to
+  occupied–occupied and virtual–virtual rotations, which the program checks (X_pq − X_qp below
+  1e-11 in those blocks).
+- **CCSD and CCSD(T)** (`cc_gradient.cpp`): closed-shell Λ equations (Stanton–Gauss
+  intermediates in PySCF's formulation, DIIS), with the (vv|vv) ladder through the same
+  AO-driven operator as the amplitude equations, so no (vv|vv) integrals are stored. The
+  spin-traced densities are accumulated block by block into the packed two-particle density
+  (the vvvv block slice by slice). CCSD(T): the Λ equations of the CCSD(T) Lagrangian get the (T)
+  source terms, and the densities the (T) contributions, with triples denominators from the full
+  Fock matrix (so the Lagrangian stays rotation-invariant); these terms are evaluated per ordered
+  triple of occupied orbitals with v³ blocks (no o³v³ arrays).
+- **Full CI** (`ci.cpp`): the two-particle density from the CI vector through (N−1)-electron
+  intermediates A_xy(K) = ⟨K| a_y,β a_x,α |Ψ⟩ (opposite spins) and (N−2)-electron ones (same spin),
+  each one matrix product. Full CI is invariant to all orbital rotations, so the Z-vector
+  vanishes (checked).
+- **Numerical gradients**: CCSDT and CCSDTQ, and correlated methods when near-linear
+  dependencies were removed or the analytic gradient would not fit into the memory limit, use
+  central differences of energies (step 0.005 bohr / rad) along internal coordinates: R for H₂
+  and LiH (2 energies); for H₂O the symmetric stretch and the bend when the molecule is C₂ᵥ
+  (4 energies, the antisymmetric derivative vanishes by symmetry), otherwise both O–H bonds and
+  the angle (6 energies). The result says that it is numerical and why. The SCF of every displaced
+  geometry starts from the orbitals of the reference geometry.
+
+Verification (`backend/tests/test_correlated_gradients.cpp`; PySCF values from
+`reference/pyscf_correlated_gradient_reference.py` →
+`backend/tests/data/correlated_gradient_reference.json`):
+
+- Against 4-point finite differences of the energy: CCSD and CCSD(T) for H₂O/aug-cc-pVDZ without
+  symmetry within 1.7e-10 and 8.6e-11 Eₕ/bohr; LiH/aug-cc-pVDZ CCSD, CCSD(T) and Full CI within
+  6e-11; H₂/aug-cc-pVTZ Full CI within 4e-10; in the *full* CI job also H₂O/aug-cc-pVTZ CCSD(T)
+  within 2.7e-10 and LiH/aug-cc-pCVDZ Full CI within 1e-10.
+- Against PySCF 2.15 (`pyscf.grad.ccsd`, `pyscf.grad.ccsd_t`, CASCI with all orbitals active):
+  energies within 5e-12 Eₕ, gradients within 7.5e-10 Eₕ/bohr (CCSD, CCSD(T) of H₂O and LiH; CCSD of
+  H₂) and 4.9e-9 (Full CI of LiH). For H₂/aug-cc-pVTZ, PySCF's CASCI gradient differs from PySCF's
+  own CCSD gradient (exact for two electrons, energies equal to 1e-12) by 2.5e-7; ΨLab's Full CI
+  gradient agrees with the CCSD one within 3e-10.
+- The densities reproduce the energies within 3e-12 Eₕ; the blocked (T) terms agree with the
+  full-array formulation within 2e-18; numerical gradients agree with the analytic ones within
+  1e-5 Eₕ/bohr; the numerical CCSDT gradient of H₂ equals the analytic Full CI one within 8e-6.
+
+Timings with 4 threads: H₂O CCSD(T) gradient in aug-cc-pVDZ 1.5 s, aug-cc-pVTZ 24 s; LiH Full CI
+gradient in aug-cc-pVTZ 89 s.
+
 ### Layout
 
 ```
@@ -448,7 +502,10 @@ backend/src/             linalg, integrals, scf, fci, report, calculation, api (
                          gemm, mo_integrals, ci (Full CI for H2, LiH); job (cancel/progress);
                          cc_closed_shell (CCSD, (T)), cc_general (CCSDT, CCSDTQ), cc_estimate;
                          gto_derivatives (derivative integrals), rhf_derivatives (RHF gradient,
-                         Hessian, CPHF, dipole derivatives)
+                         Hessian, CPHF, dipole derivatives); tensor (einsum), cc_gradient (CCSD
+                         and CCSD(T) Lambda equations and densities), correlated_gradient
+                         (relaxed densities, Z-vector), gradient (energies and gradients of
+                         every method at any geometry)
 backend/tools/           cc_diagrams.py: generates and verifies the coupled-cluster diagrams
 basis/                   Gaussian94 basis-set files from basissetexchange.org (+ README)
 backend/cli/main.cpp     developer command-line tool `macqc` (flags / JSON)
@@ -632,7 +689,8 @@ How the backend is wired into the ΨLab Xcode target (the full step-by-step guid
    `backend/src/linalg.cpp`, `integrals.cpp`, `report.cpp`, `scf.cpp`, `fci.cpp`,
    `molecule.cpp`, `basis.cpp`, `gto_integrals.cpp`, `rhf.cpp`, `molecular.cpp`, `gemm.cpp`,
    `mo_integrals.cpp`, `ci.cpp`, `cc_general.cpp`, `cc_closed_shell.cpp`, `cc_estimate.cpp`,
-   `gto_derivatives.cpp`, `rhf_derivatives.cpp`, `job.cpp`, `calculation.cpp`, `api.cpp`; add the folder `basis/`
+   `gto_derivatives.cpp`, `rhf_derivatives.cpp`, `tensor.cpp`, `correlated_gradient.cpp`,
+   `cc_gradient.cpp`, `gradient.cpp`, `job.cpp`, `calculation.cpp`, `api.cpp`; add the folder `basis/`
    as a folder reference to *Copy Bundle Resources* (the app passes its path as `basisDirectory`). Do **not** add `backend/cli/main.cpp` or anything in
    `backend/tests/` (they have their own `main`). Headers (`backend/include/macqc/*.h` and
    `third_party/nlohmann/json.hpp`) need no compile phase but should be in the project.
