@@ -69,21 +69,8 @@ Silicon and Intel Macs. The same calculations run in the terminal on Linux and m
 ## Versions
 
 ### 3.1
-- **Coupled cluster**: CCSD, CCSD(T), CCSDT and CCSDTQ for H₂, LiH and H₂O, all electrons
-  correlated, on the RHF orbitals. The method menu offers HF, CCSD, CCSD(T), CCSDT, CCSDTQ and
-  Full CI.
-  - CCSD and CCSD(T): closed-shell, spin-adapted equations; the (vv|vv) ladder runs over AO
-    integrals (in memory or recomputed), so H₂O CCSD(T) works up to aug-cc-pCV5Z.
-  - CCSDT and CCSDTQ: a general-order spin-orbital engine whose 183 diagrams are generated and
-    checked by `backend/tools/cc_diagrams.py`.
-- Verified: CCSD and CCSD(T) agree with PySCF to 1e-10 Eₕ (H₂, LiH and H₂O, seven basis sets);
-  CCSD, CCSDT and CCSDTQ agree with brute-force coupled cluster in the determinant space to 1e-12;
-  CCSDTQ reproduces Full CI for LiH (four electrons) and every method reproduces Full CI for H₂.
-- Estimates of amplitudes, memory and time; refusals above the memory limit (60 % of the RAM in
-  the app) or three days, warnings for long calculations, notes where a method is exact.
-- New *Coupled cluster* tab; potential curves with any method; matrix products through Apple's
-  Accelerate in the app.
-- Terminal version: `method = HF | CCSD | CCSD(T) | CCSDT | CCSDTQ | FCI`.
+Coupled cluster (CCSD, CCSD(T), CCSDT, CCSDTQ) and the method menu HF … Full CI — see
+[Version 3.1 (next version)](#version-31-next-version) at the end of this file.
 
 ### 3.0
 - **H₂, LiH and H₂O** in eight correlation-consistent basis sets (aug-cc-pVXZ, aug-cc-pCVXZ,
@@ -645,3 +632,28 @@ XcodeGen project spec in `xcode/project.yml`. See [`app/SETUP.md`](app/SETUP.md)
   CCSDT and the refused CCSDTQ of H₂O/aug-cc-pVTZ, selected with launch arguments
   `-psilabMolecule`, `-psilabBasis`, `-psilabMethod`; screenshots) and publishes the **ΨLab-app**
   download.
+
+## Version 3.1 (next version)
+
+ΨLab 3.1 is the next version of the application, after 3.0. It adds coupled-cluster methods
+for H₂, LiH and H₂O; HeH⁺ (Szabo–Ostlund) is unchanged.
+
+- **Coupled cluster**: CCSD, CCSD(T), CCSDT and CCSDTQ for H₂, LiH and H₂O, all electrons
+  correlated, on the RHF orbitals. The method menu offers HF, CCSD, CCSD(T), CCSDT, CCSDTQ and
+  Full CI.
+  - CCSD and CCSD(T): closed-shell, spin-adapted equations; the (vv|vv) ladder runs over AO
+    integrals (in memory or recomputed), so H₂O CCSD(T) works up to aug-cc-pCV5Z.
+  - CCSDT and CCSDTQ: a general-order spin-orbital engine whose 183 diagrams are generated and
+    checked by `backend/tools/cc_diagrams.py`.
+- Verified: CCSD and CCSD(T) agree with PySCF within 3e-10 Eₕ (H₂, LiH and H₂O, seven cases);
+  CCSD, CCSDT and CCSDTQ agree with brute-force coupled cluster in the determinant space to 1e-12;
+  CCSDTQ reproduces Full CI for LiH (four electrons) and every method reproduces Full CI for H₂.
+- Estimates of amplitudes, memory and time; refusals above the memory limit (60 % of the RAM in
+  the app) or three days, warnings for long calculations, notes where a method is exact.
+- New *Coupled cluster* tab; potential curves with any method; matrix products through Apple's
+  Accelerate in the app.
+- Terminal version: `method = HF | CCSD | CCSD(T) | CCSDT | CCSDTQ | FCI`.
+- Usage: choose the method in the sidebar's **Method** menu (HF, CCSD, CCSD(T), CCSDT, CCSDTQ,
+  Full CI) and press **Run**; the results are in the *Summary* and *Coupled cluster* tabs, the
+  energies of all methods for H₂, LiH and H₂O/aug-cc-pVDZ are listed under
+  [Coupled cluster (version 3.1)](#coupled-cluster-version-31).
