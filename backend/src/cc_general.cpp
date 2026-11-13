@@ -28,7 +28,6 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <map>
 #include <mutex>
 #include <stdexcept>
@@ -57,7 +56,7 @@ struct DiagramSpec {
 };
 
 const DiagramSpec kDiagrams[] = {
-#include "cc_diagrams.inc"
+#include "macqc/cc_diagrams.inc"
 };
 
 // ---------------------------------------------------------------------------------------
@@ -277,18 +276,6 @@ struct Workspace {
     int threads = 1;
     std::vector<double> A, B, M;
 };
-
-struct Profile {
-    double gather_a = 0, gather_b = 0, gemm = 0, scatter = 0, setup = 0;
-    double flops = 0;
-    ~Profile() {
-        if (std::getenv("PSILAB_CC_PROFILE"))
-            std::fprintf(stderr, "profile: setup %.2f gatherA %.2f gatherB %.2f gemm %.2f (%.2f GF/s) scatter %.2f\n", setup,
-                         gather_a, gather_b, gemm, 2e-9 * flops / std::max(gemm, 1e-9), scatter);
-    }
-};
-Profile g_prof;
-inline double now_s() { return std::chrono::duration<double>(Clock::now().time_since_epoch()).count(); }
 
 struct StepStats {
     double flops = 0.0;   // multiply-adds
@@ -583,29 +570,18 @@ void contract_step(const Spaces& sp, const GTensor& X, const GTensor& T, int n, 
         };
 
         const bool b_once = (cchunk == ncols);
-        double tp = now_s();
         if (b_once) gather_b(0, ncols);
-        g_prof.gather_b += now_s() - tp;
         for (std::size_t r0 = 0; r0 < nrows; r0 += rchunk) {
             check_cancelled();
             const std::size_t r1 = std::min(nrows, r0 + rchunk);
-            tp = now_s();
             gather_a(r0, r1);
-            g_prof.gather_a += now_s() - tp;
             for (std::size_t c0 = 0; c0 < ncols; c0 += cchunk) {
                 const std::size_t c1 = std::min(ncols, c0 + cchunk);
-                tp = now_s();
                 if (!b_once) gather_b(c0, c1);
-                g_prof.gather_b += now_s() - tp;
-                tp = now_s();
                 ws.M.resize((r1 - r0) * (c1 - c0));
                 gemm(false, false, r1 - r0, c1 - c0, nk, 1.0, ws.A.data(), nk, ws.B.data(), c1 - c0, 0.0,
                      ws.M.data(), c1 - c0, threads);
-                g_prof.gemm += now_s() - tp;
-                g_prof.flops += static_cast<double>(r1 - r0) * (c1 - c0) * nk;
-                tp = now_s();
                 scatter(r0, r1, c0, c1);
-                g_prof.scatter += now_s() - tp;
             }
         }
     }

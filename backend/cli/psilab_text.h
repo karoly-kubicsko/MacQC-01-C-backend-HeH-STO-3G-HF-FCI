@@ -25,7 +25,7 @@
 namespace psilab {
 
 // ΨLab version (same as the macOS app).
-constexpr const char* kVersion = "3.0";
+constexpr const char* kVersion = "3.1";
 
 // 1 bohr in angstrom (CODATA 2022).
 constexpr double kBohrToAngstrom = 0.529177210544;

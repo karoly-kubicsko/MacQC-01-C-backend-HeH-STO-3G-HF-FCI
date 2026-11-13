@@ -3,7 +3,8 @@
 # Launches the app, screenshots each tab, dumps the visible text of every tab to the log,
 # runs the potential-curve scan and checks the Edit/File menu commands; then relaunches with
 # launch arguments for H2O (RHF), LiH (Full CI), an H2 potential curve, the refused Full CI
-# of H2O and a long H2O calculation (warning).
+# of H2O, a long H2O calculation (warning) and the coupled-cluster methods of ΨLab 3.1
+# (open method menu, H2O CCSD(T), LiH CCSDT, refused H2O CCSDTQ).
 # Never fails the job: it only gathers evidence (screenshots + text) for review.
 #
 # Usage: ui_smoke.sh path/to/ΨLab.app output-dir
@@ -291,6 +292,41 @@ relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -p
 view_tab "17-h2o-fci-refused" "Summary"
 relaunch -appearanceChoice dark -psilabMolecule H2O -psilabBasis aug-cc-pCV5Z -psilabMethod RHF
 view_tab "18-h2o-cv5z-warning-dark" "Summary"
+
+# --- ΨLab 3.1: coupled cluster ------------------------------------------------------------
+cat > "$OUT/method-menu.applescript" <<'APPLESCRIPT'
+on run argv
+    tell application "System Events"
+        tell process "ΨLab"
+            set frontmost to true
+            set els to entire contents of window 1
+            repeat with e in els
+                try
+                    if (role of e) is "AXPopUpButton" and (name of e) is "Method" then
+                        click e
+                        return "CLICKED Method pop-up"
+                    end if
+                end try
+            end repeat
+        end tell
+    end tell
+    return "NOT FOUND Method pop-up"
+end run
+APPLESCRIPT
+echo "== H2O, CCSD(T)/aug-cc-pVDZ and the method menu"
+relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -psilabMethod "CCSD(T)"
+view_tab "19-h2o-ccsd-t-summary" "Summary"
+view_tab "20-h2o-ccsd-t-coupled-cluster" "Coupled Cluster"
+with_timeout 30 osascript "$OUT/method-menu.applescript" | grep -E "CLICKED|NOT FOUND"
+sleep 2
+shot "21-method-menu"
+osascript -e 'tell application "System Events" to key code 53' || true
+
+echo "== LiH, CCSDT/aug-cc-pVDZ (dark) and H2O CCSDTQ/aug-cc-pVTZ (refused)"
+relaunch -appearanceChoice dark -psilabMolecule LiH -psilabBasis aug-cc-pVDZ -psilabMethod CCSDT
+view_tab "22-lih-ccsdt-coupled-cluster-dark" "Coupled Cluster"
+relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVTZ -psilabMethod CCSDTQ
+view_tab "23-h2o-ccsdtq-refused" "Summary"
 
 pkill -x "ΨLab" || true
 

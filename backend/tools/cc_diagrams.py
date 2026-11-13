@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Spin-orbital coupled-cluster equations up to CCSDTQ for the ΨLab C++ engine.
 
-Usage:  python3 backend/tools/cc_diagrams.py            (verify and write backend/src/cc_diagrams.inc)
+Usage:  python3 backend/tools/cc_diagrams.py            (verify and write backend/include/macqc/cc_diagrams.inc)
         python3 backend/tools/cc_diagrams.py --check    (verify only)
 
 Theory
@@ -48,7 +48,7 @@ import numpy as np
 
 MAX_RANK = 4
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-OUTPUT = ROOT / "backend" / "src" / "cc_diagrams.inc"
+OUTPUT = ROOT / "backend" / "include" / "macqc" / "cc_diagrams.inc"
 
 
 # ----------------------------------------------------------------------------------

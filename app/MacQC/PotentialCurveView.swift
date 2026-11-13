@@ -3,7 +3,7 @@
 //  MacQC
 //
 //  Potential-curve tab: scan the bond length (HeH⁺: 0.8 … 5.0 bohr; H₂, LiH, H₂O: their own
-//  ranges, H₂O as a symmetric stretch), plot the HF/RHF and Full CI total energies with
+//  ranges, H₂O as a symmetric stretch), plot the HF/RHF and the correlated total energies with
 //  Swift Charts and mark the minimum of each curve.
 //
 
@@ -108,7 +108,7 @@ struct PotentialCurveView: View {
                                range.lowerBound * Units.bohrToAngstrom, range.upperBound * Units.bohrToAngstrom,
                                range.lowerBound, range.upperBound)
         if model.isGeneral {
-            let method = model.method == .fci ? "RHF and Full CI" : "RHF"
+            let method = model.method == .hf ? "RHF" : "RHF and \(model.method.title)"
             let what = model.molecule == .h2o ? "symmetric stretch, \(rangeText) at the chosen angle" : rangeText
             return "Press Run scan to compute \(method) total energies of \(model.molecule.title) (\(what)) in \(model.basis)."
         }
@@ -146,9 +146,10 @@ struct PotentialCurveView: View {
                     .symbolSize(110)
                 }
             }
-            .chartForegroundStyleScale([model.curveHFLabel: Color.orange, "FCI": Color.blue])
+            .chartForegroundStyleScale([model.curveHFLabel: Color.orange, model.curveCorrelatedLabel: Color.blue])
             // Same shapes as the minimum markers, so the legend matches the plot.
-            .chartSymbolScale([model.curveHFLabel: BasicChartSymbolShape.diamond, "FCI": BasicChartSymbolShape.circle])
+            .chartSymbolScale([model.curveHFLabel: BasicChartSymbolShape.diamond,
+                               model.curveCorrelatedLabel: BasicChartSymbolShape.circle])
             .chartXScale(domain: xDomain)
             .chartYScale(domain: yDomain)
             .chartXAxisLabel("R (Å)")
@@ -176,7 +177,7 @@ struct PotentialCurveView: View {
     // MARK: Minima markers and readout
 
     private func color(for method: String) -> Color {
-        method == "FCI" ? .blue : .orange
+        method == model.curveHFLabel ? .orange : .blue
     }
 
     /// Bottom-right normally (the curves level off high up at large R); bottom-left if a
@@ -191,7 +192,7 @@ struct PotentialCurveView: View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(model.curveMinima) { minimum in
                 HStack(spacing: 6) {
-                    Image(systemName: minimum.method == "FCI" ? "circle.fill" : "diamond.fill")
+                    Image(systemName: minimum.method == model.curveHFLabel ? "diamond.fill" : "circle.fill")
                         .font(.caption2)
                         .foregroundStyle(color(for: minimum.method))
                     Text(String(format: "%@ min: R = %@, E = %.6f E_h",

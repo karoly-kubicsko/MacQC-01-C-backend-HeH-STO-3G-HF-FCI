@@ -32,7 +32,7 @@ nonisolated struct MacQCInput: Codable, Sendable, Equatable {
     // General molecules
     var basis: String = "aug-cc-pVDZ"
     var angle: Double = 104.52      // degrees, H2O
-    var method: String = "RHF"      // "RHF" or "FCI"
+    var method: String = "RHF"      // "RHF", "CCSD", "CCSD(T)", "CCSDT", "CCSDTQ" or "FCI"
     var basisDirectory: String = ""
     var threads: Int = 0
     var memoryMB: Double = 1024
@@ -213,6 +213,23 @@ nonisolated struct MacQCEstimate: Codable, Sendable, Equatable {
     var totalSeconds: Double
     var longCalculation: Bool
     var fci: MacQCFCIEstimate?
+    var coupledCluster: MacQCCCEstimate?
+}
+
+nonisolated struct MacQCCCEstimate: Codable, Sendable, Equatable {
+    var method: String
+    var engine: String
+    var occupied: Int
+    var virtuals: Int
+    var amplitudes: Double
+    var memoryMB: Double
+    var ladderIntegralsStored: Bool
+    var iterations: Int
+    var iterationSeconds: Double
+    var triplesSeconds: Double
+    var seconds: Double
+    var feasible: Bool
+    var reason: String?
 }
 
 nonisolated struct MacQCRHFIteration: Codable, Sendable, Equatable, Identifiable {
@@ -286,9 +303,54 @@ nonisolated struct MacQCFullCI: Codable, Sendable, Equatable {
     var ciSeconds: Double
 }
 
+nonisolated struct MacQCCCAmplitude: Codable, Sendable, Equatable {
+    var value: Double
+    var rank: Int
+    var occupied: [Int]
+    var virtuals: [Int]
+    var spins: String
+}
+
+nonisolated struct MacQCCCIteration: Codable, Sendable, Equatable, Identifiable {
+    var iteration: Int
+    var totalEnergy: Double
+    var correlationEnergy: Double
+    var deltaE: Double
+    var residual: Double
+
+    var id: Int { iteration }
+}
+
+/// Coupled-cluster result (CCSD, CCSD(T), CCSDT, CCSDTQ).
+nonisolated struct MacQCCoupledCluster: Codable, Sendable, Equatable {
+    var method: String
+    var engine: String
+    var converged: Bool
+    var iterations: Int
+    var occupied: Int
+    var virtuals: Int
+    var referenceEnergy: Double
+    var correlationEnergy: Double      // without (T)
+    var ccEnergy: Double               // reference + correlation
+    var triplesCorrection: Double?     // CCSD(T) only
+    var totalEnergy: Double
+    var t1Diagnostic: Double
+    var amplitudeCounts: [Double]      // index = rank
+    var amplitudeNorms: [Double]
+    var leadingAmplitudes: [MacQCCCAmplitude]
+    var history: [MacQCCCIteration]
+    var ladder: String?
+    var transformSeconds: Double
+    var ccSeconds: Double
+    var triplesSeconds: Double?
+
+    /// Correlation energy including (T).
+    var totalCorrelation: Double { totalEnergy - referenceEnergy }
+}
+
 /// Output JSON of `macqc_run`. HeH+: `hf` / `fci` (null when the backend reports an error
 /// before producing them). H2, LiH, H2O: `molecule`, `basis`, `estimate`, `notes`,
-/// `warnings`, `refusal`, `rhf`, `fullCI`.
+/// `warnings`, `refusal`, `rhf`, `fullCI`, `coupledCluster`.
 nonisolated struct MacQCOutput: Codable, Sendable, Equatable {
     var input: MacQCInput
     var error: String?
@@ -303,6 +365,13 @@ nonisolated struct MacQCOutput: Codable, Sendable, Equatable {
     var refusal: String?
     var rhf: MacQCRHF?
     var fullCI: MacQCFullCI?
+    var coupledCluster: MacQCCoupledCluster?
+
+    /// Energy of the correlated method of this result (Full CI or coupled cluster).
+    var correlatedEnergy: Double? { coupledCluster?.totalEnergy ?? fullCI?.totalEnergy }
+
+    /// Title of the method of this result: "HF", "CCSD(T)", "Full CI", …
+    var methodTitle: String { MethodChoice.title(of: input.method) }
 
     /// True for H2, LiH and H2O.
     var isGeneral: Bool { input.isGeneral }
@@ -312,7 +381,8 @@ nonisolated struct MacQCOutput: Codable, Sendable, Equatable {
 
 /// Progress of a running calculation, as reported by the backend.
 nonisolated struct MacQCProgress: Sendable, Equatable {
-    var stage: Int = 0        // 0 idle, 1 integrals, 2 SCF, 3 transformation, 4 Full CI, 5 done
+    var stage: Int = 0        // 0 idle, 1 integrals, 2 SCF, 3 transformation, 4 Full CI, 5 done,
+                              // 6 coupled cluster, 7 (T) correction (iteration = percent)
     var iteration: Int = 0
     var energy: Double = 0
     var residual: Double = 0
@@ -331,6 +401,12 @@ nonisolated struct MacQCProgress: Sendable, Equatable {
                           iteration, energy, residual)
         case 5:
             return "Done"
+        case 6:
+            if iteration == 0 { return "Coupled cluster: setting up…" }
+            return String(format: "Coupled cluster iteration %ld · E = %.8f E_h · max |Δt| %.1e",
+                          iteration, energy, residual)
+        case 7:
+            return String(format: "(T) correction · %ld %% done", iteration)
         default:
             return "Starting…"
         }

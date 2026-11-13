@@ -2,7 +2,7 @@
 //  Molecules.swift
 //  MacQC
 //
-//  The molecules, methods and basis sets offered in the sidebar (ΨLab 3.0).
+//  The molecules, methods and basis sets offered in the sidebar (ΨLab 3.1).
 //
 
 import Foundation
@@ -79,17 +79,60 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// Methods for H₂, LiH and H₂O, in the order of the method menu. The raw value is the
+/// backend's method name; all correlated methods start from RHF and correlate all electrons.
 nonisolated enum MethodChoice: String, CaseIterable, Identifiable, Sendable {
-    case rhf = "RHF"
+    case hf = "RHF"
+    case ccsd = "CCSD"
+    case ccsdT = "CCSD(T)"
+    case ccsdt = "CCSDT"
+    case ccsdtq = "CCSDTQ"
     case fci = "FCI"
 
     var id: String { rawValue }
 
+    /// Name in the user interface.
     var title: String {
         switch self {
-        case .rhf: return "RHF"
+        case .hf: return "HF"
+        case .ccsd: return "CCSD"
+        case .ccsdT: return "CCSD(T)"
+        case .ccsdt: return "CCSDT"
+        case .ccsdtq: return "CCSDTQ"
         case .fci: return "Full CI"
         }
+    }
+
+    var isCoupledCluster: Bool {
+        switch self {
+        case .ccsd, .ccsdT, .ccsdt, .ccsdtq: return true
+        case .hf, .fci: return false
+        }
+    }
+
+    /// One-line description under the method menu.
+    var explanation: String {
+        switch self {
+        case .hf: return "Restricted Hartree–Fock (no electron correlation)."
+        case .ccsd: return "Coupled cluster with single and double excitations."
+        case .ccsdT: return "CCSD plus the perturbative triples correction (T)."
+        case .ccsdt: return "Coupled cluster with single, double and triple excitations."
+        case .ccsdtq: return "Coupled cluster up to quadruple excitations."
+        case .fci: return "Full configuration interaction: exact in the basis set."
+        }
+    }
+
+    /// Accepts the raw value or the title (launch arguments), in any case.
+    init?(name: String) {
+        let n = name.lowercased()
+        guard let m = MethodChoice.allCases.first(where: { $0.rawValue.lowercased() == n || $0.title.lowercased() == n })
+        else { return nil }
+        self = m
+    }
+
+    /// Title of a backend method name ("RHF" -> "HF").
+    static func title(of backendName: String) -> String {
+        MethodChoice(rawValue: backendName)?.title ?? backendName
     }
 }
 
@@ -117,8 +160,9 @@ nonisolated enum MachineLimits {
         min(max(physicalMemoryMB / 4, 512), 8192)
     }
 
-    /// Memory limit of a Full CI: half of the RAM (at least 2 GB, at most 16 GB).
+    /// Memory limit of Full CI and coupled cluster: 60 % of the RAM (at least 2 GB, at most
+    /// 48 GB).
     static var fciMemoryMB: Double {
-        min(max(physicalMemoryMB / 2, 2048), 16384)
+        min(max(physicalMemoryMB * 0.6, 2048), 49152)
     }
 }

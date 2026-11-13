@@ -39,12 +39,14 @@ struct MacQCApp: App {
                     .keyboardShortcut("1", modifiers: [.command])
                 Button("Hartree–Fock") { model.selectedTab = .hartreeFock }
                     .keyboardShortcut("2", modifiers: [.command])
-                Button("Full CI") { model.selectedTab = .fullCI }
+                Button("Coupled Cluster") { model.selectedTab = .coupledCluster }
                     .keyboardShortcut("3", modifiers: [.command])
-                Button("Potential Curve") { model.selectedTab = .potentialCurve }
+                Button("Full CI") { model.selectedTab = .fullCI }
                     .keyboardShortcut("4", modifiers: [.command])
-                Button("Report") { model.selectedTab = .report }
+                Button("Potential Curve") { model.selectedTab = .potentialCurve }
                     .keyboardShortcut("5", modifiers: [.command])
+                Button("Report") { model.selectedTab = .report }
+                    .keyboardShortcut("6", modifiers: [.command])
                 Divider()
             }
 

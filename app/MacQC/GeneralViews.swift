@@ -3,7 +3,7 @@
 //  MacQC
 //
 //  Detail tabs for H₂, LiH and H₂O: summary, Hartree–Fock, Full CI, and the text report
-//  (shared with HeH⁺).
+//  (shared with HeH⁺); the coupled-cluster tab is in CoupledClusterView.swift.
 //
 
 import SwiftUI
@@ -31,6 +31,10 @@ struct GeneralSummaryView: View {
                             if let fci = out.fullCI {
                                 EnergyCard(title: "Full CI total energy", value: fci.totalEnergy, decimals: 10)
                                 EnergyCard(title: "Correlation energy", value: fci.correlationEnergy, decimals: 10)
+                            }
+                            if let cc = out.coupledCluster {
+                                EnergyCard(title: "\(cc.method) total energy", value: cc.totalEnergy, decimals: 10)
+                                EnergyCard(title: "Correlation energy", value: cc.totalCorrelation, decimals: 10)
                             }
                             EnergyCard(title: "Nuclear repulsion", value: rhf.nuclearRepulsion, decimals: 10)
                         }
@@ -83,6 +87,11 @@ struct GeneralSummaryView: View {
                     }
                     .dataPanel()
                 }
+                if let c = out.coupledCluster {
+                    SectionTitle("Coupled cluster \(c.method)")
+                    CoupledClusterSummaryRows(cc: c)
+                        .dataPanel()
+                }
             }
             .padding(20)
         }
@@ -91,7 +100,7 @@ struct GeneralSummaryView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
             let name = Fmt.formula(out.molecule?.name ?? out.input.molecule)
-            let method = out.fullCI != nil ? "RHF and Full CI" : "RHF"
+            let method = out.input.method == "RHF" ? "RHF" : "RHF and \(out.methodTitle)"
             Text("\(name) · \(out.basis?.name ?? out.input.basis) · \(method)")
                 .font(.title2.weight(.semibold))
             if let mol = out.molecule {
@@ -347,7 +356,7 @@ struct GeneralFullCIView: View {
             return refusal
         }
         if out.input.method != "FCI" {
-            return "This result is RHF only. Choose Full CI in the sidebar and press Run (H₂ and LiH up to aug-cc-pCVTZ; for H₂O Full CI is impossible)."
+            return "This result is \(out.methodTitle). Choose Full CI in the sidebar and press Run (H₂ and LiH up to aug-cc-pCVTZ; for H₂O Full CI is impossible)."
         }
         return "Full CI needs a converged Hartree–Fock calculation."
     }

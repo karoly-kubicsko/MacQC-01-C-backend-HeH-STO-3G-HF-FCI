@@ -11,14 +11,15 @@ import AppKit
 import UniformTypeIdentifiers
 
 enum DetailTab: Hashable {
-    case summary, hartreeFock, fullCI, potentialCurve, report
+    case summary, hartreeFock, coupledCluster, fullCI, potentialCurve, report
 }
 
-/// One point of the potential-curve scan (FCI is missing in an RHF-only scan).
+/// One point of the potential-curve scan: the (R)HF energy and that of the correlated method
+/// (Full CI or coupled cluster; missing in an HF-only scan).
 struct CurvePoint: Identifiable, Sendable {
     var R: Double
     var hf: Double
-    var fci: Double?
+    var correlated: Double?
     var id: Double { R }
 }
 
@@ -61,7 +62,7 @@ final class AppModel {
 
     // H2, LiH, H2O
     var basis: String = "aug-cc-pVDZ"
-    var method: MethodChoice = .rhf
+    var method: MethodChoice = .hf
     var bondLengths: [MoleculeChoice: Double] = [:]   // bohr; missing = experimental value
     var waterAngle: Double = MoleculeChoice.defaultWaterAngle
 
@@ -136,6 +137,7 @@ final class AppModel {
     var curvePoints: [CurvePoint] = []
     var curveInputDescription: String?   // parameters the scan was computed with
     var curveHFLabel = "HF"               // "HF" for HeH+, "RHF" for the other molecules
+    var curveCorrelatedLabel = "FCI"      // "FCI", "CCSD", "CCSD(T)", "CCSDT" or "CCSDTQ"
     var showLongScanConfirmation = false
 
     @ObservationIgnored private var scanTask: Task<Void, Never>?
@@ -145,7 +147,7 @@ final class AppModel {
 
     init() {
         // Launch arguments (also used by the UI test): -psilabMolecule H2O -psilabBasis aug-cc-pVTZ
-        // -psilabMethod FCI
+        // -psilabMethod FCI (or HF, CCSD, CCSD(T), CCSDT, CCSDTQ)
         let defaults = UserDefaults.standard
         if let m = defaults.string(forKey: "psilabMolecule"),
            let choice = MoleculeChoice.allCases.first(where: { $0.rawValue.lowercased() == m.lowercased() }) {
@@ -156,7 +158,7 @@ final class AppModel {
             basis = name
         }
         if let m = defaults.string(forKey: "psilabMethod"),
-           let choice = MethodChoice.allCases.first(where: { $0.rawValue.lowercased() == m.lowercased() }) {
+           let choice = MethodChoice(name: m) {
             method = choice
         }
     }
@@ -375,9 +377,9 @@ final class AppModel {
                     break
                 }
                 if general, let rhf = output.rhf, output.error == nil {
-                    points.append(CurvePoint(R: r, hf: rhf.totalEnergy, fci: output.fullCI?.totalEnergy))
+                    points.append(CurvePoint(R: r, hf: rhf.totalEnergy, correlated: output.correlatedEnergy))
                 } else if !general, let hf = output.hf, let fci = output.fci, output.error == nil {
-                    points.append(CurvePoint(R: r, hf: hf.totalEnergy, fci: fci.totalEnergy))
+                    points.append(CurvePoint(R: r, hf: hf.totalEnergy, correlated: fci.totalEnergy))
                 } else {
                     failures.append(String(format: "R = %.3f: %@", r, output.error ?? "no result"))
                 }
@@ -389,11 +391,12 @@ final class AppModel {
 
         curvePoints = points
         curveHFLabel = general ? "RHF" : "HF"
+        curveCorrelatedLabel = general ? (template.method == "FCI" ? "FCI" : template.method) : "FCI"
         if general {
             let m = MoleculeChoice(rawValue: template.molecule)?.title ?? template.molecule
             curveInputDescription = String(
                 format: "%@ · %@ · %@%@", m, template.basis,
-                template.method == "FCI" ? "RHF and Full CI" : "RHF",
+                template.method == "RHF" ? "RHF" : "RHF and " + MethodChoice.title(of: template.method),
                 template.molecule == "H2O" ? String(format: " · angle H–O–H %.2f°", template.angle) : "")
         } else {
             curveInputDescription = String(
@@ -412,8 +415,8 @@ final class AppModel {
             samples.append(CurveSample(method: curveHFLabel, R: p.R, energy: p.hf))
         }
         for p in curvePoints {
-            if let fci = p.fci {
-                samples.append(CurveSample(method: "FCI", R: p.R, energy: fci))
+            if let e = p.correlated {
+                samples.append(CurveSample(method: curveCorrelatedLabel, R: p.R, energy: e))
             }
         }
         return samples
@@ -424,8 +427,8 @@ final class AppModel {
         if let m = AppModel.minimum(of: curvePoints.map { ($0.R, $0.hf) }, method: curveHFLabel) {
             minima.append(m)
         }
-        let fciSamples = curvePoints.compactMap { p in p.fci.map { (p.R, $0) } }
-        if let m = AppModel.minimum(of: fciSamples, method: "FCI") {
+        let correlatedSamples = curvePoints.compactMap { p in p.correlated.map { (p.R, $0) } }
+        if let m = AppModel.minimum(of: correlatedSamples, method: curveCorrelatedLabel) {
             minima.append(m)
         }
         return minima
@@ -504,8 +507,7 @@ final class AppModel {
     private func generalSummaryText(_ out: MacQCOutput) -> String? {
         guard let mol = out.molecule, let rhf = out.rhf else { return nil }
         var lines: [String] = []
-        let method = out.fullCI != nil ? "FCI" : "RHF"
-        lines.append("ΨLab – \(mol.name), \(method)/\(out.basis?.name ?? out.input.basis)")
+        lines.append("ΨLab – \(mol.name), \(out.input.method)/\(out.basis?.name ?? out.input.basis)")
         var geometry = String(format: "%@ = %@", MoleculeChoice(rawValue: mol.name)?.bondLabel ?? "R",
                               Fmt.lengthBoth(mol.R))
         if let angle = mol.angle {
@@ -538,6 +540,18 @@ final class AppModel {
             lines.append("  correlation energy:   " + Fmt.energy10(f.correlationEnergy) + " E_h")
             lines.append(String(format: "  <S^2>:                %.6f", f.S2))
             lines.append(String(format: "  RHF determinant:      |C_0|^2 = %.6f", f.hfWeight))
+        }
+        if let c = out.coupledCluster {
+            lines.append("")
+            lines.append("Coupled cluster \(c.method)")
+            lines.append("  converged:            \(c.converged ? "yes" : "no") (\(c.iterations) iterations)")
+            if let t = c.triplesCorrection {
+                lines.append("  CCSD energy:          " + Fmt.energy10(c.ccEnergy) + " E_h")
+                lines.append("  (T) correction:       " + Fmt.energy10(t) + " E_h")
+            }
+            lines.append("  total energy:         " + Fmt.energy10(c.totalEnergy) + " E_h")
+            lines.append("  correlation energy:   " + Fmt.energy10(c.totalCorrelation) + " E_h")
+            lines.append(String(format: "  T1 diagnostic:        %.6f", c.t1Diagnostic))
         }
         for warning in out.warnings ?? [] {
             lines.append("Warning: \(warning)")
@@ -584,12 +598,13 @@ final class AppModel {
         }
         lines.append("")
         let hfHead = curveHFLabel == "HF" ? " E_HF (E_h)" : "E_RHF (E_h)"
-        let hasFCI = curvePoints.contains { $0.fci != nil }
-        lines.append("    R (bohr)       R (Å)     \(hfHead)" + (hasFCI ? "     E_FCI (E_h)" : ""))
+        let hasCorrelated = curvePoints.contains { $0.correlated != nil }
+        let corrHead = String(repeating: " ", count: max(0, 11 - curveCorrelatedLabel.count)) + "E_\(curveCorrelatedLabel) (E_h)"
+        lines.append("    R (bohr)       R (Å)     \(hfHead)" + (hasCorrelated ? "  " + corrHead : ""))
         for p in curvePoints {
             var line = String(format: "%12.4f  %12.4f  %14.8f", p.R, p.R * Units.bohrToAngstrom, p.hf)
-            if let fci = p.fci {
-                line += String(format: "  %14.8f", fci)
+            if let e = p.correlated {
+                line += String(format: "  %14.8f", e)
             }
             lines.append(line)
         }
@@ -602,10 +617,10 @@ final class AppModel {
         return lines.joined(separator: "\n")
     }
 
-    /// File name stem for the exports, e.g. "PsiLab-HeH+-STO3G-R1.4632" or "PsiLab-H2O-FCI-aug-cc-pVDZ".
+    /// File name stem for the exports, e.g. "PsiLab-HeH+-STO3G-R1.4632" or "PsiLab-H2O-CCSD(T)-aug-cc-pVDZ".
     private func exportName(_ out: MacQCOutput) -> String {
         if out.isGeneral {
-            let method = out.fullCI != nil ? "FCI" : "RHF"
+            let method = out.input.method
             return String(format: "PsiLab-%@-%@-%@-R%.4f", out.input.molecule, method, out.input.basis, out.input.R)
         }
         return String(format: "PsiLab-HeH+-STO%ldG-R%.4f", out.input.nGaussians, out.input.R)

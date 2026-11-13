@@ -72,6 +72,12 @@ jobs:
       - name: Full CI energies (H2 up to aug-cc-pVQZ, LiH aug-cc-pVDZ)
         run: python3 reference/pyscf_fci_reference.py --check --max-det 300000 --max-orbitals 100
 
+      - name: Coupled-cluster diagrams (signs against brute-force coupled cluster)
+        run: python3 backend/tools/cc_diagrams.py --check
+
+      - name: CCSD and CCSD(T) energies (H2, LiH, H2O)
+        run: python3 reference/pyscf_cc_reference.py --check
+
   # On request only: every RHF reference case, including H2O/aug-cc-pCV5Z (341 functions), and
   # every Full CI case, including LiH/aug-cc-pCVTZ (11 million determinants).
   rhf-full:
