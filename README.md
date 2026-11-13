@@ -493,6 +493,56 @@ Verification (`backend/tests/test_correlated_gradients.cpp`; PySCF values from
 Timings with 4 threads: H₂O CCSD(T) gradient in aug-cc-pVDZ 1.5 s, aug-cc-pVTZ 24 s; LiH Full CI
 gradient in aug-cc-pVTZ 89 s.
 
+### Geometry optimisation (version 5.0)
+
+`internal_coordinates.cpp`, `optimizer.cpp`: minimisation in redundant internal coordinates
+(Pulay & Fogarasi, J. Chem. Phys. 96, 2856 (1992); Peng, Ayala, Schlegel & Frisch, J. Comput.
+Chem. 17, 49 (1996)).
+
+- **Coordinates**: bonds between atoms closer than 1.3 × the sum of their covalent radii (separate
+  fragments are joined through their closest atoms), bends at every atom with two bonds, and two
+  linear-bend components in perpendicular planes when an angle exceeds 175° (back to a bend below
+  170°). Wilson B matrix (analytic for stretches and bends), G = BBᵀ with its generalised inverse,
+  internal gradient g_q = G⁻ B g_x, projector P = G G⁻.
+- **Step**: rational-function optimisation (lowest eigenvector of the augmented Hessian of the
+  projected gradient and Hessian P H P + 1000 (1 − P)), scaled to the trust radius (0.3 at the
+  start, adapted between 0.001 and 0.5 from the ratio of the actual to the predicted energy
+  change); iterative back-transformation x ← x + Bᵀ G⁻ (q_target − q(x)) to 1e-10 bohr.
+- **Hessian**: initial Hessian analytic (the RHF Hessian of stage 1 in internal coordinates,
+  including the gradient term Σ g_q ∂²q/∂x², when the method is RHF and the basis has at most 100
+  functions), otherwise Lindh's model Hessian (Chem. Phys. Lett. 241, 423 (1995)); Schlegel's is
+  available. Negative eigenvalues of an analytic initial Hessian are replaced by their magnitude;
+  if the start is a saddle point with no gradient along the negative-curvature direction (e.g. H₂O
+  at exactly 180°), the first step follows that direction. BFGS updates (skipped, and reported,
+  when the curvature condition fails).
+- **Convergence** (as in Gaussian): maximum and RMS internal force (normal 4.5e-4 and 3.0e-4
+  Eₕ/bohr, tight 1.5e-5 and 1.0e-5) and maximum and RMS displacement of the next step (normal
+  1.8e-3 and 1.2e-3 bohr, tight 6.0e-5 and 4.0e-5), plus the energy change since the previous
+  step (normal 1e-6, tight 1e-8 Eₕ); converged when all are met, or when both forces are 100 times
+  below their thresholds. Each step reports which criteria are met. Default at most 50 steps; an
+  optimisation that does not converge stops with a message, and no frequency or single-point step
+  follows (jobs 4 and 5).
+- **Symmetry**: H₂O is optimised in all three internal coordinates without constraints; the report
+  says whether the C₂ᵥ start stays C₂ᵥ (|R(O–H1) − R(O–H2)|, 1e-14 bohr in practice). A change of the
+  number of removed near-linear dependencies along the path is reported (the energy surface is
+  then not continuous).
+
+Verification (`backend/tests/test_optimizer.cpp`; references from
+`reference/pyscf_optimization_reference.py` → `backend/tests/data/optimization_reference.json`):
+
+- Tight optimisations from the default geometries against PySCF analytic gradients minimised by
+  geomeTRIC (an independent optimiser): H₂O RHF/aug-cc-pVDZ and aug-cc-pVTZ, CCSD/aug-cc-pVDZ,
+  CCSD(T)/aug-cc-pVDZ; LiH RHF, CCSD(T) and Full CI/aug-cc-pVDZ; H₂ Full CI/aug-cc-pVTZ. Bond
+  lengths agree within 8e-6 Å, angles within 6e-4°, energies within 1e-10 Eₕ. (PySCF's own
+  gradient scanner for CCSD(T) passes the CCSD Λ multipliers to the (T) gradient and returns the
+  CCSD energy; the reference script uses a scanner with the CCSD(T) Λ equations instead — with
+  PySCF's scanner the H₂O CCSD(T) optimum is 1.9e-3 Å and 0.12° off and 6.7e-6 Eₕ higher.)
+- Difficult starts reach the same RHF minimum: an asymmetric start (1.05 Å, 0.90 Å, 120°) ends
+  C₂ᵥ; 179°; exactly 180° (a saddle point, left along the bend, C₂ᵥ kept); 0.8 Å and 70°.
+- Wilson B matrices (also linear bends) against finite differences to 1e-10; back-transformation
+  residual below 1e-15; a CCSDT optimisation of H₂ with numerical gradients reaches the analytic
+  Full CI optimum within 7e-6 Å; the step limit stops with a message.
+
 ### Layout
 
 ```
@@ -505,7 +555,8 @@ backend/src/             linalg, integrals, scf, fci, report, calculation, api (
                          Hessian, CPHF, dipole derivatives); tensor (einsum), cc_gradient (CCSD
                          and CCSD(T) Lambda equations and densities), correlated_gradient
                          (relaxed densities, Z-vector), gradient (energies and gradients of
-                         every method at any geometry)
+                         every method at any geometry); internal_coordinates, optimizer
+                         (redundant internal coordinates, RFO, BFGS)
 backend/tools/           cc_diagrams.py: generates and verifies the coupled-cluster diagrams
 basis/                   Gaussian94 basis-set files from basissetexchange.org (+ README)
 backend/cli/main.cpp     developer command-line tool `macqc` (flags / JSON)
@@ -690,7 +741,8 @@ How the backend is wired into the ΨLab Xcode target (the full step-by-step guid
    `molecule.cpp`, `basis.cpp`, `gto_integrals.cpp`, `rhf.cpp`, `molecular.cpp`, `gemm.cpp`,
    `mo_integrals.cpp`, `ci.cpp`, `cc_general.cpp`, `cc_closed_shell.cpp`, `cc_estimate.cpp`,
    `gto_derivatives.cpp`, `rhf_derivatives.cpp`, `tensor.cpp`, `correlated_gradient.cpp`,
-   `cc_gradient.cpp`, `gradient.cpp`, `job.cpp`, `calculation.cpp`, `api.cpp`; add the folder `basis/`
+   `cc_gradient.cpp`, `gradient.cpp`, `internal_coordinates.cpp`, `optimizer.cpp`, `job.cpp`,
+   `calculation.cpp`, `api.cpp`; add the folder `basis/`
    as a folder reference to *Copy Bundle Resources* (the app passes its path as `basisDirectory`). Do **not** add `backend/cli/main.cpp` or anything in
    `backend/tests/` (they have their own `main`). Headers (`backend/include/macqc/*.h` and
    `third_party/nlohmann/json.hpp`) need no compile phase but should be in the project.
