@@ -38,6 +38,7 @@ struct ElectronicOptions {
     double cc_energy_tol = 1.0e-10;
     double fci_residual_tol = 1.0e-8;
     double numerical_step = 0.005;   // bohr (stretches) and rad (bends) of numerical gradients
+    std::array<double, 3> field{0.0, 0.0, 0.0};  // uniform electric field (a.u.), energies only
 };
 
 // Callbacks for progress and for the text output (each may be empty).

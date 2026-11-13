@@ -360,7 +360,16 @@ RHFResult run_rhf(const Molecule& mol, const BasisSet& basis, const RHFOptions& 
     const Matrix S = overlap_matrix(basis);
     const Matrix T = kinetic_matrix(basis);
     const Matrix V = nuclear_attraction_matrix(basis, mol);
-    const Matrix H = add(T, V);
+    Matrix H = add(T, V);
+    if (opt.field[0] != 0.0 || opt.field[1] != 0.0 || opt.field[2] != 0.0) {
+        const std::vector<Matrix> D = dipole_matrices(basis, {0.0, 0.0, 0.0});
+        for (int k = 0; k < 3; ++k) {
+            const double f = opt.field[static_cast<std::size_t>(k)];
+            if (f == 0.0) continue;
+            H = add(H, D[static_cast<std::size_t>(k)], f);
+            for (const Atom& a : mol.atoms) r.nuclear_repulsion -= f * a.Z * a.position[static_cast<std::size_t>(k)];
+        }
+    }
     r.S = S;
     r.H = H;
 
