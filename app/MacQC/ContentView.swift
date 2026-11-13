@@ -51,7 +51,8 @@ struct DetailView: View {
                 .tag(DetailTab.hartreeFock)
 
             CoupledClusterView(model: model)
-                .tabItem { Label("Coupled cluster", systemImage: "point.3.connected.trianglepath.dotted") }
+                // Short label: six tabs must fit next to the sidebar at the minimum window width.
+                .tabItem { Label("CC", systemImage: "point.3.connected.trianglepath.dotted") }
                 .tag(DetailTab.coupledCluster)
 
             FullCIView(model: model)

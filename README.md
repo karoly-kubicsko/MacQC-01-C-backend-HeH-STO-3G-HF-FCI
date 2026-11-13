@@ -50,7 +50,7 @@ Silicon and Intel Macs. The same calculations run in the terminal on Linux and m
   **Cancel** (⌘.) stops it.
 - **Tabs**: *Summary* (energies, geometry, basis set per atom, convergence, timings),
   *Hartree–Fock* (energy components and virial ratio, orbital energies, SCF iterations; for HeH⁺
-  also the integrals and the S/H/F/C/P matrices), *Coupled cluster* (energies, (T) correction,
+  also the integrals and the S/H/F/C/P matrices), *CC* (coupled cluster: energies, (T) correction,
   T1 diagnostic, amplitude counts and norms, largest amplitudes, convergence of the iterations),
   *Full CI* (energies, ⟨S²⟩, leading determinants,
   natural-orbital occupations, Davidson iterations; for HeH⁺ the CI vector, singlet weights and all
@@ -650,10 +650,10 @@ for H₂, LiH and H₂O; HeH⁺ (Szabo–Ostlund) is unchanged.
   CCSDTQ reproduces Full CI for LiH (four electrons) and every method reproduces Full CI for H₂.
 - Estimates of amplitudes, memory and time; refusals above the memory limit (60 % of the RAM in
   the app) or three days, warnings for long calculations, notes where a method is exact.
-- New *Coupled cluster* tab; potential curves with any method; matrix products through Apple's
+- New *CC* (coupled cluster) tab; potential curves with any method; matrix products through Apple's
   Accelerate in the app.
 - Terminal version: `method = HF | CCSD | CCSD(T) | CCSDT | CCSDTQ | FCI`.
 - Usage: choose the method in the sidebar's **Method** menu (HF, CCSD, CCSD(T), CCSDT, CCSDTQ,
-  Full CI) and press **Run**; the results are in the *Summary* and *Coupled cluster* tabs, the
+  Full CI) and press **Run**; the results are in the *Summary* and *CC* (coupled cluster) tabs, the
   energies of all methods for H₂, LiH and H₂O/aug-cc-pVDZ are listed under
   [Coupled cluster (version 4.0)](#coupled-cluster-version-40).
