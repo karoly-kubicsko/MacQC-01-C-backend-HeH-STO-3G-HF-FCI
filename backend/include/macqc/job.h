@@ -10,14 +10,23 @@
 
 namespace macqc {
 
-enum class JobStage : int { Idle = 0, Integrals = 1, SCF = 2, Transformation = 3, FullCI = 4, Done = 5 };
+enum class JobStage : int {
+    Idle = 0,
+    Integrals = 1,
+    SCF = 2,
+    Transformation = 3,
+    FullCI = 4,
+    Done = 5,
+    CoupledCluster = 6,  // iteration, total energy, largest amplitude change
+    Triples = 7          // (T) correction; iteration = percent done
+};
 
 struct Job {
     std::atomic<bool> cancelled{false};
     std::atomic<int> stage{0};
     std::atomic<int> iteration{0};
     std::atomic<double> energy{0.0};    // latest total energy (E_h)
-    std::atomic<double> residual{0.0};  // SCF orbital gradient or CI residual norm
+    std::atomic<double> residual{0.0};  // SCF orbital gradient, CI residual norm or CC amplitude change
 };
 
 struct Cancelled : std::runtime_error {
