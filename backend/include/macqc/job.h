@@ -18,7 +18,10 @@ enum class JobStage : int {
     FullCI = 4,
     Done = 5,
     CoupledCluster = 6,  // iteration, total energy, largest amplitude change
-    Triples = 7          // (T) correction; iteration = percent done
+    Triples = 7,         // (T) correction; iteration = percent done
+    Gradient = 8,        // analytic gradient (iteration = part)
+    Hessian = 9,         // analytic Hessian: derivative integrals (iteration = part)
+    CPHF = 10            // coupled-perturbed HF / orbital response (iteration, residual)
 };
 
 struct Job {

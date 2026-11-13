@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       full:
-        description: "Also run the large RHF and Full CI cases (up to 341 basis functions / 11 million determinants, about 1 h)"
+        description: "Also run the large RHF, Full CI and gradient cases (up to 341 basis functions / 11 million determinants, about 1.5 h)"
         type: boolean
         default: false
 
@@ -78,6 +78,9 @@ jobs:
       - name: CCSD and CCSD(T) energies (H2, LiH, H2O)
         run: python3 reference/pyscf_cc_reference.py --check
 
+      - name: RHF gradients, Hessians and dipole moments (cases up to 110 basis functions)
+        run: python3 reference/pyscf_gradient_reference.py --check --max-nbf 110
+
   # On request only: every RHF reference case, including H2O/aug-cc-pCV5Z (341 functions), and
   # every Full CI case, including LiH/aug-cc-pCVTZ (11 million determinants).
   rhf-full:
@@ -90,7 +93,7 @@ jobs:
       - name: Build
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-          cmake --build build --parallel --target macqc_rhf_tests macqc_fci_tests
+          cmake --build build --parallel --target macqc_rhf_tests macqc_fci_tests macqc_gradient_tests
 
       - name: All RHF cases against PySCF
         env:
@@ -103,3 +106,9 @@ jobs:
           PSILAB_TEST_MAX_DET: "2e7"
           PSILAB_BASIS_DIR: ${{ github.workspace }}/basis
         run: ./build/macqc_fci_tests
+
+      - name: All gradient and Hessian cases (finite differences, PySCF up to aug-cc-pV5Z)
+        env:
+          PSILAB_TEST_MAX_NBF: "400"
+          PSILAB_BASIS_DIR: ${{ github.workspace }}/basis
+        run: ./build/macqc_gradient_tests
