@@ -19,6 +19,8 @@ public:
     double operator()(std::size_t i, std::size_t j) const { return data_[i * cols_ + j]; }
     void fill(double value);
     Matrix transposed() const;
+    double* data() { return data_.data(); }
+    const double* data() const { return data_.data(); }
 
 private:
     std::size_t rows_ = 0, cols_ = 0;

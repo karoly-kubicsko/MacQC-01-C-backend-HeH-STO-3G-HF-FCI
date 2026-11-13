@@ -384,6 +384,61 @@ Timings with 4 threads (2.1 GHz x86-64, portable matrix products; the app uses A
 H₂O CCSD(T) in aug-cc-pVDZ 0.5 s, aug-cc-pVTZ 6 s, aug-cc-pVQZ 51 s; H₂O CCSDT/aug-cc-pVDZ
 2.6 min (20 iterations); LiH CCSDTQ/aug-cc-pVDZ 1.6 min.
 
+### Analytic derivatives (version 5.0)
+
+ΨLab 5.0 differentiates the energy with respect to the nuclear coordinates. The first stage is
+the integral machinery and the analytic RHF gradient and Hessian (`gto_derivatives.cpp`,
+`rhf_derivatives.cpp`).
+
+- **Derivative integrals**: the derivative of a contracted spherical Gaussian with respect to its
+  centre, d/dA_k [x^c exp(−a r²)] = 2a G(c + 1_k) − c_k G(c − 1_k), is written as "component
+  shells" (angular momentum l + 1 with the contraction coefficients times 2a, and l − 1), each with
+  an output transform whose rows are the 3(2l+1) derivatives of the spherical functions; second
+  derivatives use l + 2, l and l − 2 components with 6(2l+1) rows. The unchanged Obara–Saika /
+  Head-Gordon–Pople engines evaluate them (shells up to l = 7 for second derivatives of h
+  functions). Translational invariance gives the derivative with respect to the last centre:
+  B for overlap and kinetic energy, the nucleus for nuclear attraction, D for electron repulsion
+  (second derivatives from the AA, BB, CC, AB, AC, BC blocks).
+- **RHF gradient**: dE/dx = Σ P h^x + Σ Γ (μν|λσ)^x − Σ W S^x + dV_nn/dx with the
+  energy-weighted density W = 2 Σ_i ε_i C_i C_iᵀ, over the unique shell quartets (8-fold symmetry),
+  multithreaded. When near-linearly dependent combinations are removed (canonical
+  orthogonalisation), the kept orbital space rotates with the geometry; ΨLab adds the exact term
+  2 Σ_{l removed, k kept} (e_lᵀ S^x e_k)(e_lᵀ F P S e_k) / (s_k (s_k − s_l)) (e, s: eigenvectors and
+  eigenvalues of S), so the gradient is the derivative of the energy that is actually computed.
+  PySCF omits this term.
+- **RHF Hessian**: second-derivative integrals contracted with P, Γ and W, the explicit Fock
+  derivatives F^(x) = h^x + G^x(P), and the coupled-perturbed HF equations for all 3N coordinates
+  at once (Krylov subspace solver, orbital-energy preconditioner, one Fock build per coordinate and
+  iteration). The same response gives the **dipole derivatives** (atomic polar tensors) for IR
+  intensities. Without the second-order term of the orbital-space rotation, the analytic Hessian
+  is exact only when no functions are removed; with removed functions, ΨLab differentiates the
+  analytic gradients numerically instead (see the frequency section).
+
+Verification (`backend/tests/test_gradients.cpp`, run by CTest; PySCF values from
+`reference/pyscf_gradient_reference.py` → `backend/tests/data/gradient_reference.json`):
+
+- Integral derivatives against 4-point central finite differences of the integrals, for a test
+  basis with s … h shells on O, H and Li (62 functions): first derivatives of S, h = T + V
+  (including the operator derivative), the dipole integrals and Σ Γ (μν|λσ) to 1e-9 relative
+  (matrices of dS/dx, dh/dx and G^x(D) element by element); second derivatives to 1e-9 (S),
+  1e-8 (h, rounding floor of the finite differences) and 3e-9 (ERI) relative.
+- RHF gradient against finite differences of the energy, at distorted geometries without
+  symmetry: H₂O (aug-cc-pVDZ, aug-cc-pCVDZ), LiH (aug-cc-pCVDZ), H₂ (aug-cc-pVTZ), all within
+  2e-10 Eₕ/bohr. With two removed combinations (H₂O/aug-cc-pVDZ, threshold raised to 1e-2) the
+  gradient including the rotation term agrees within 1.4e-10, while the term itself is
+  3.2e-4 Eₕ/bohr.
+- Against PySCF 2.15 (analytic gradient, analytic CPHF Hessian, dipole moment): energies within
+  1e-9 Eₕ, gradients within 1.2e-10 Eₕ/bohr (H₂O aug-cc-pVDZ … aug-cc-pV5Z, LiH aug-cc-pVDZ and
+  aug-cc-pCVTZ, H₂ aug-cc-pVTZ and aug-cc-pV5Z; with removed functions, ΨLab's gradient minus the
+  rotation term), Hessians within 6e-10 Eₕ/bohr² (H₂O aug-cc-pVDZ and aug-cc-pVTZ, LiH
+  aug-cc-pVDZ, H₂ aug-cc-pVTZ), dipole moments within 2.5e-9 e·bohr.
+- RHF Hessian against finite differences of the analytic gradient (H₂O/aug-cc-pVDZ, distorted):
+  1e-10 Eₕ/bohr²; dipole derivatives against finite differences of the dipole moment: 5e-10;
+  translational sum rules of the Hessian and of the dipole derivatives: 1e-11.
+
+Timings with 4 threads (2.1 GHz x86-64): H₂O/aug-cc-pVTZ gradient 1.2 s, Hessian 7 s;
+H₂O/aug-cc-pVQZ gradient 10 s, Hessian 73 s (61 s derivative integrals, 12 s CPHF).
+
 ### Layout
 
 ```
@@ -391,7 +446,9 @@ backend/include/macqc/   public headers (macqc_api.h is the C API)
 backend/src/             linalg, integrals, scf, fci, report, calculation, api (HeH+, STO-nG);
                          molecule, basis, gto_integrals, rhf, molecular (H2, LiH, H2O);
                          gemm, mo_integrals, ci (Full CI for H2, LiH); job (cancel/progress);
-                         cc_closed_shell (CCSD, (T)), cc_general (CCSDT, CCSDTQ), cc_estimate
+                         cc_closed_shell (CCSD, (T)), cc_general (CCSDT, CCSDTQ), cc_estimate;
+                         gto_derivatives (derivative integrals), rhf_derivatives (RHF gradient,
+                         Hessian, CPHF, dipole derivatives)
 backend/tools/           cc_diagrams.py: generates and verifies the coupled-cluster diagrams
 basis/                   Gaussian94 basis-set files from basissetexchange.org (+ README)
 backend/cli/main.cpp     developer command-line tool `macqc` (flags / JSON)
@@ -574,7 +631,8 @@ How the backend is wired into the ΨLab Xcode target (the full step-by-step guid
 2. In the app target's **Build Phases ▸ Compile Sources** add exactly these files:
    `backend/src/linalg.cpp`, `integrals.cpp`, `report.cpp`, `scf.cpp`, `fci.cpp`,
    `molecule.cpp`, `basis.cpp`, `gto_integrals.cpp`, `rhf.cpp`, `molecular.cpp`, `gemm.cpp`,
-   `mo_integrals.cpp`, `ci.cpp`, `job.cpp`, `calculation.cpp`, `api.cpp`; add the folder `basis/`
+   `mo_integrals.cpp`, `ci.cpp`, `cc_general.cpp`, `cc_closed_shell.cpp`, `cc_estimate.cpp`,
+   `gto_derivatives.cpp`, `rhf_derivatives.cpp`, `job.cpp`, `calculation.cpp`, `api.cpp`; add the folder `basis/`
    as a folder reference to *Copy Bundle Resources* (the app passes its path as `basisDirectory`). Do **not** add `backend/cli/main.cpp` or anything in
    `backend/tests/` (they have their own `main`). Headers (`backend/include/macqc/*.h` and
    `third_party/nlohmann/json.hpp`) need no compile phase but should be in the project.

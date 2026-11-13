@@ -24,6 +24,8 @@ add_library(macqc STATIC
   backend/src/molecule.cpp
   backend/src/basis.cpp
   backend/src/gto_integrals.cpp
+  backend/src/gto_derivatives.cpp
+  backend/src/rhf_derivatives.cpp
   backend/src/rhf.cpp
   backend/src/molecular.cpp
   backend/src/gemm.cpp
@@ -104,3 +106,12 @@ add_test(NAME psilab_example_h2o
   COMMAND psilab ${CMAKE_CURRENT_SOURCE_DIR}/examples/h2o.inp ${CMAKE_CURRENT_BINARY_DIR}/h2o.out)
 add_test(NAME psilab_missing_input COMMAND psilab does-not-exist.inp)
 set_tests_properties(psilab_missing_input PROPERTIES WILL_FAIL TRUE)
+# ΨLab 5.0: derivative integrals, RHF gradient and Hessian (finite differences, PySCF).
+add_executable(macqc_gradient_tests backend/tests/test_gradients.cpp)
+target_link_libraries(macqc_gradient_tests PRIVATE macqc)
+target_include_directories(macqc_gradient_tests PRIVATE third_party)
+target_compile_definitions(macqc_gradient_tests PRIVATE
+  MACQC_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/backend/tests/data")
+add_test(NAME macqc_gradient_tests COMMAND macqc_gradient_tests)
+set_tests_properties(macqc_gradient_tests PROPERTIES
+  ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 7200)

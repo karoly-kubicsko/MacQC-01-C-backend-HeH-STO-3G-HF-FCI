@@ -159,16 +159,35 @@ const SolidTables& solid_tables() {
     return t;
 }
 
-// in [pre][ncart(l)][post] -> out [pre][2l+1][post]
-void to_spherical(int l, int pre, int post, const double* in, double* out) {
-    const auto& rows = solid_tables().rows[l];
-    const int nc = ncart(l), ns = 2 * l + 1;
+struct TransformTables {
+    ShellTransform sph[kMaxAngularMomentum + 1];
+    TransformTables() {
+        const SolidTables& st = solid_tables();
+        for (int l = 0; l <= kMaxAngularMomentum; ++l) {
+            sph[l].l = l;
+            sph[l].rows = st.rows[l];
+        }
+    }
+};
+
+const TransformTables& transform_tables() {
+    static const TransformTables t;
+    return t;
+}
+
+void transform_rows(const std::vector<std::vector<std::pair<int, double>>>& rows, int nc, int pre, int post,
+                    const double* in, double* out) {
+    const int ns = static_cast<int>(rows.size());
     for (int p = 0; p < pre; ++p) {
         const double* src = in + static_cast<std::size_t>(p) * nc * post;
         double* dst = out + static_cast<std::size_t>(p) * ns * post;
         for (int m = 0; m < ns; ++m) {
             double* d = dst + static_cast<std::size_t>(m) * post;
             const auto& row = rows[m];
+            if (row.empty()) {
+                for (int q = 0; q < post; ++q) d[q] = 0.0;
+                continue;
+            }
             {
                 const double c0 = row[0].second;
                 const double* s0 = src + static_cast<std::size_t>(row[0].first) * post;
@@ -181,6 +200,16 @@ void to_spherical(int l, int pre, int post, const double* in, double* out) {
             }
         }
     }
+}
+
+// in [pre][ncart(l)][post] -> out [pre][2l+1][post]
+void to_spherical(int l, int pre, int post, const double* in, double* out) {
+    transform_rows(solid_tables().rows[l], ncart(l), pre, post, in, out);
+}
+
+// The transform of a pair member: t, or the solid harmonics of l.
+inline const ShellTransform& pair_transform(const ShellTransform* t, int l) {
+    return t ? *t : transform_tables().sph[l];
 }
 
 // Horizontal recurrence (a|b+1_i) = (a+1_i|b) + AB_i (a|b) on blocks with nk trailing values.
@@ -300,7 +329,7 @@ void overlap_kinetic_block(const Shell& A, const Shell& B, OneElectron kind, std
 }
 
 // Cartesian block [ca][cb] of the nuclear attraction for the shell pair (a, b).
-void nuclear_block(const Shell& A, const Shell& B, const Molecule& mol, std::vector<double>& cart,
+void nuclear_block(const Shell& A, const Shell& B, const std::vector<Atom>& nuclei, std::vector<double>& cart,
                    std::vector<double>& work) {
     const CartTables& T = cart_tables();
     const int la = A.l, lb = B.l, L = la + lb;
@@ -332,7 +361,7 @@ void nuclear_block(const Shell& A, const Shell& B, const Molecule& mol, std::vec
                 PA[d] = P[d] - A.center[d];
             }
             const double o2p = 0.5 / p;
-            for (const Atom& atom : mol.atoms) {
+            for (const Atom& atom : nuclei) {
                 double PC[3];
                 for (int d = 0; d < 3; ++d) PC[d] = P[d] - atom.position[d];
                 const double Tb = p * (PC[0] * PC[0] + PC[1] * PC[1] + PC[2] * PC[2]);
@@ -379,7 +408,7 @@ Matrix one_electron_matrix(const BasisSet& basis, const Molecule* mol, MatrixKin
             const Shell& A = basis.shells[i];
             const Shell& B = basis.shells[j];
             if (kind == MatrixKind::Nuclear)
-                nuclear_block(A, B, *mol, cart, work);
+                nuclear_block(A, B, mol->atoms, cart, work);
             else
                 overlap_kinetic_block(A, B, kind == MatrixKind::Overlap ? OneElectron::Overlap : OneElectron::Kinetic,
                                       cart);
@@ -457,6 +486,8 @@ ShellPairList make_shell_pairs(const BasisSet& basis) {
             sp.b = b;
             const Shell& A = basis.shells[a];
             const Shell& B = basis.shells[b];
+            sp.la = A.l;
+            sp.lb = B.l;
             double AB2 = 0.0;
             for (int d = 0; d < 3; ++d) {
                 sp.AB[d] = A.center[d] - B.center[d];
@@ -480,15 +511,112 @@ ShellPairList make_shell_pairs(const BasisSet& basis) {
     return list;
 }
 
-EriEngine::EriEngine(const BasisSet& basis) : basis_(basis) {}
+ShellPair make_shell_pair(const Shell& X, const ShellTransform* tx, const Shell& Y, const ShellTransform* ty,
+                          bool keep_order, int index_x, int index_y) {
+    ShellPair sp;
+    const bool swap = Y.l > X.l;
+    const Shell& A = swap ? Y : X;
+    const Shell& B = swap ? X : Y;
+    sp.a = swap ? index_y : index_x;
+    sp.b = swap ? index_x : index_y;
+    sp.la = A.l;
+    sp.lb = B.l;
+    sp.ta = swap ? ty : tx;
+    sp.tb = swap ? tx : ty;
+    sp.unswap = swap && keep_order;
+    double AB2 = 0.0;
+    for (int d = 0; d < 3; ++d) {
+        sp.AB[d] = A.center[d] - B.center[d];
+        AB2 += sp.AB[d] * sp.AB[d];
+    }
+    for (std::size_t pa = 0; pa < A.exponents.size(); ++pa)
+        for (std::size_t pb = 0; pb < B.exponents.size(); ++pb) {
+            const double x = A.exponents[pa], y = B.exponents[pb], z = x + y;
+            PrimitivePair pp;
+            pp.zeta = z;
+            pp.K = A.coefficients[pa] * B.coefficients[pb] * std::exp(-x * y / z * AB2);
+            if (std::fabs(pp.K) * std::pow(kPiExact / z, 1.5) < 1.0e-17) continue;
+            for (int d = 0; d < 3; ++d) {
+                pp.P[d] = (x * A.center[d] + y * B.center[d]) / z;
+                pp.PA[d] = pp.P[d] - A.center[d];
+            }
+            sp.prims.push_back(pp);
+        }
+    return sp;
+}
+
+const ShellTransform& spherical_transform(int l) {
+    if (l < 0 || l > kMaxAngularMomentum) throw std::invalid_argument("spherical_transform: l out of range");
+    return transform_tables().sph[l];
+}
+
+void apply_transform(const ShellTransform& T, int pre, int post, const double* in, double* out) {
+    transform_rows(T.rows, ncart(T.l), pre, post, in, out);
+}
+
+void overlap_cartesian(const Shell& A, const Shell& B, std::vector<double>& out) {
+    overlap_kinetic_block(A, B, OneElectron::Overlap, out);
+}
+
+void kinetic_cartesian(const Shell& A, const Shell& B, std::vector<double>& out) {
+    overlap_kinetic_block(A, B, OneElectron::Kinetic, out);
+}
+
+void nuclear_cartesian(const Shell& A, const Shell& B, const std::vector<Atom>& nuclei, std::vector<double>& out) {
+    std::vector<double> work;
+    nuclear_block(A, B, nuclei, out, work);
+}
+
+void dipole_cartesian(const Shell& A, const Shell& B, const std::array<double, 3>& origin, std::vector<double>& out) {
+    // (x - O_x) = (x - A_x) + (A_x - O_x): <a|x - O_x|b> = <a + 1_x|b> + (A_x - O_x) <a|b>.
+    const CartTables& T = cart_tables();
+    const int na = ncart(A.l), nb = ncart(B.l);
+    std::vector<double> s0, s1;
+    overlap_kinetic_block(A, B, OneElectron::Overlap, s0);
+    Shell up = A;
+    up.l = A.l + 1;
+    overlap_kinetic_block(up, B, OneElectron::Overlap, s1);
+    out.assign(static_cast<std::size_t>(3) * na * nb, 0.0);
+    for (int k = 0; k < 3; ++k)
+        for (int ca = 0; ca < na; ++ca) {
+            const int cu = T.up[A.l][ca][k];
+            for (int cb = 0; cb < nb; ++cb)
+                out[(static_cast<std::size_t>(k) * na + ca) * nb + cb] =
+                    s1[static_cast<std::size_t>(cu) * nb + cb] +
+                    (A.center[k] - origin[k]) * s0[static_cast<std::size_t>(ca) * nb + cb];
+        }
+}
+
+std::vector<Matrix> dipole_matrices(const BasisSet& basis, const std::array<double, 3>& origin) {
+    const int n = basis.n_functions;
+    std::vector<Matrix> M(3, Matrix(n, n));
+    std::vector<double> cart, tmp, sph;
+    for (std::size_t i = 0; i < basis.shells.size(); ++i)
+        for (std::size_t j = 0; j <= i; ++j) {
+            const Shell& A = basis.shells[i];
+            const Shell& B = basis.shells[j];
+            dipole_cartesian(A, B, origin, cart);
+            const int na = ncart(A.l), sa = A.size(), sb = B.size();
+            tmp.resize(static_cast<std::size_t>(3) * na * sb);
+            sph.resize(static_cast<std::size_t>(3) * sa * sb);
+            to_spherical(B.l, 3 * na, 1, cart.data(), tmp.data());
+            for (int k = 0; k < 3; ++k)
+                to_spherical(A.l, 1, sb, tmp.data() + static_cast<std::size_t>(k) * na * sb,
+                             sph.data() + static_cast<std::size_t>(k) * sa * sb);
+            for (int k = 0; k < 3; ++k)
+                for (int a = 0; a < sa; ++a)
+                    for (int b = 0; b < sb; ++b) {
+                        const double v = sph[(static_cast<std::size_t>(k) * sa + a) * sb + b];
+                        M[k](A.first_function + a, B.first_function + b) = v;
+                        M[k](B.first_function + b, A.first_function + a) = v;
+                    }
+        }
+    return M;
+}
 
 const double* EriEngine::compute(const ShellPair& bra, const ShellPair& ket) {
     const CartTables& T = cart_tables();
-    const Shell& A = basis_.shells[bra.a];
-    const Shell& B = basis_.shells[bra.b];
-    const Shell& C = basis_.shells[ket.a];
-    const Shell& D = basis_.shells[ket.b];
-    const int la = A.l, lb = B.l, lc = C.l, ld = D.l;
+    const int la = bra.la, lb = bra.lb, lc = ket.la, ld = ket.lb;
     const int Lab = la + lb, Lcd = lc + ld, L = Lab + Lcd;
 
     // ---- VRR layout: blocks (E, F) of ncart(F) x nm x ncart(E) values, i.e. [d][m][c]
@@ -630,7 +758,11 @@ const double* EriEngine::compute(const ShellPair& bra, const ShellPair& ket) {
     // ---- bra HRR: (la lb | k), then spherical on b and a.
     const double* in[kMaxLL + 2];
     for (int E = la; E <= Lab; ++E) in[E - la] = acc + accoff[E - la];
-    const int na = ncart(la), nb = ncart(lb), nsa = 2 * la + 1, nsb = 2 * lb + 1;
+    const ShellTransform& Ta = pair_transform(bra.ta, la);
+    const ShellTransform& Tb = pair_transform(bra.tb, lb);
+    const ShellTransform& Tc = pair_transform(ket.ta, lc);
+    const ShellTransform& Td = pair_transform(ket.tb, ld);
+    const int na = ncart(la), nb = ncart(lb), nsa = Ta.size(), nsb = Tb.size();
     const std::size_t bra_cart = static_cast<std::size_t>(na) * nb * NK;
     if (hrr_.size() < bra_cart) hrr_.resize(bra_cart);
     hrr(la, lb, bra.AB, NK, in, tmp_, hrr_.data());
@@ -640,8 +772,8 @@ const double* EriEngine::compute(const ShellPair& bra, const ShellPair& ket) {
     const std::size_t s2size = static_cast<std::size_t>(nbra) * NK;
     std::vector<double>& buf = out_;
     if (buf.size() < s1size + s2size) buf.resize(s1size + s2size);
-    to_spherical(lb, na, NK, hrr_.data(), buf.data());
-    to_spherical(la, 1, nsb * NK, buf.data(), buf.data() + s1size);
+    transform_rows(Tb.rows, nb, na, NK, hrr_.data(), buf.data());
+    transform_rows(Ta.rows, na, 1, nsb * NK, buf.data(), buf.data() + s1size);
     // transpose to [k][bra]
     const double* sb = buf.data() + s1size;
     if (hrr_.size() < s2size) hrr_.resize(s2size);
@@ -652,22 +784,37 @@ const double* EriEngine::compute(const ShellPair& bra, const ShellPair& ket) {
     // ---- ket HRR on [k][bra] blocks.
     const double* kin[kMaxLL + 2];
     for (int F = lc; F <= Lcd; ++F) kin[F - lc] = kt + static_cast<std::size_t>(kof[F]) * nbra;
-    const int nc = ncart(lc), nd = ncart(ld), nsc = 2 * lc + 1, nsd = 2 * ld + 1;
+    const int nc = ncart(lc), nd = ncart(ld), nsc = Tc.size(), nsd = Td.size();
     const std::size_t ket_cart = static_cast<std::size_t>(nc) * nd * nbra;
     const std::size_t k1 = static_cast<std::size_t>(nc) * nsd * nbra;
     const std::size_t k2 = static_cast<std::size_t>(nsc) * nsd * nbra;
     if (acc_.size() < ket_cart + k1 + k2) acc_.resize(ket_cart + k1 + k2);
     double* kc = acc_.data();
     hrr(lc, ld, ket.AB, nbra, kin, tmp_, kc);
-    to_spherical(ld, nc, nbra, kc, kc + ket_cart);
-    to_spherical(lc, 1, nsd * nbra, kc + ket_cart, kc + ket_cart + k1);
-    // [ket][bra] -> [bra][ket]
+    transform_rows(Td.rows, nd, nc, nbra, kc, kc + ket_cart);
+    transform_rows(Tc.rows, nc, 1, nsd * nbra, kc + ket_cart, kc + ket_cart + k1);
+    // [ket][bra] -> [bra][ket] (and [b][a] / [d][c] for pairs that are to be unswapped)
     const double* ks = kc + ket_cart + k1;
     const int nket = nsc * nsd;
     if (buf.size() < static_cast<std::size_t>(nbra) * nket) buf.resize(static_cast<std::size_t>(nbra) * nket);
     double* out = buf.data();
-    for (int k = 0; k < nket; ++k)
-        for (int b = 0; b < nbra; ++b) out[static_cast<std::size_t>(b) * nket + k] = ks[static_cast<std::size_t>(k) * nbra + b];
+    if (!bra.unswap && !ket.unswap) {
+        for (int k = 0; k < nket; ++k)
+            for (int b = 0; b < nbra; ++b)
+                out[static_cast<std::size_t>(b) * nket + k] = ks[static_cast<std::size_t>(k) * nbra + b];
+        return out;
+    }
+    for (int c = 0; c < nsc; ++c)
+        for (int d = 0; d < nsd; ++d) {
+            const int k = c * nsd + d;
+            const int kd = ket.unswap ? d * nsc + c : k;
+            for (int a = 0; a < nsa; ++a)
+                for (int b = 0; b < nsb; ++b) {
+                    const int bi = a * nsb + b;
+                    const int bd = bra.unswap ? b * nsa + a : bi;
+                    out[static_cast<std::size_t>(bd) * nket + kd] = ks[static_cast<std::size_t>(k) * nbra + bi];
+                }
+        }
     return out;
 }
 
