@@ -81,7 +81,7 @@ target_compile_definitions(macqc_fci_tests PRIVATE
 add_test(NAME macqc_fci_tests COMMAND macqc_fci_tests)
 set_tests_properties(macqc_fci_tests PROPERTIES
   ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 7200)
-# ΨLab 3.1: coupled cluster (brute-force references, PySCF, Full CI).
+# ΨLab 4.0: coupled cluster (brute-force references, PySCF, Full CI).
 add_executable(macqc_cc_tests backend/tests/test_cc.cpp)
 target_link_libraries(macqc_cc_tests PRIVATE macqc)
 target_include_directories(macqc_cc_tests PRIVATE third_party)

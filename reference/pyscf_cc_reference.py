@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Independent CCSD and CCSD(T) reference energies for ΨLab 3.1, computed with PySCF.
+"""Independent CCSD and CCSD(T) reference energies for ΨLab 4.0, computed with PySCF.
 
 Same molecules, geometries, basis files and linear-dependency threshold as
 reference/pyscf_rhf_reference.py; all electrons are correlated (no frozen core). PySCF's

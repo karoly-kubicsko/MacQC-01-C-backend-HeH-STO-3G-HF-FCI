@@ -1,4 +1,4 @@
-// Coupled-cluster methods for closed-shell molecules (ΨLab 3.1): CCSD, CCSD(T), CCSDT,
+// Coupled-cluster methods for closed-shell molecules (ΨLab 4.0): CCSD, CCSD(T), CCSDT,
 // CCSDTQ, all electrons correlated, canonical RHF reference (the Fock matrix is used in
 // full, so off-diagonal elements are allowed).
 //

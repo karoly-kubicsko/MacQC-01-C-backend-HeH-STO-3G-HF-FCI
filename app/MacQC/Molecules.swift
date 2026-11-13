@@ -2,7 +2,7 @@
 //  Molecules.swift
 //  MacQC
 //
-//  The molecules, methods and basis sets offered in the sidebar (ΨLab 3.1).
+//  The molecules, methods and basis sets offered in the sidebar (ΨLab 4.0).
 //
 
 import Foundation

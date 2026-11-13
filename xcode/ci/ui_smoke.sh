@@ -3,7 +3,7 @@
 # Launches the app, screenshots each tab, dumps the visible text of every tab to the log,
 # runs the potential-curve scan and checks the Edit/File menu commands; then relaunches with
 # launch arguments for H2O (RHF), LiH (Full CI), an H2 potential curve, the refused Full CI
-# of H2O, a long H2O calculation (warning) and the coupled-cluster methods of ΨLab 3.1
+# of H2O, a long H2O calculation (warning) and the coupled-cluster methods of ΨLab 4.0
 # (open method menu, H2O CCSD(T), LiH CCSDT, refused H2O CCSDTQ).
 # Never fails the job: it only gathers evidence (screenshots + text) for review.
 #
@@ -293,7 +293,7 @@ view_tab "17-h2o-fci-refused" "Summary"
 relaunch -appearanceChoice dark -psilabMolecule H2O -psilabBasis aug-cc-pCV5Z -psilabMethod RHF
 view_tab "18-h2o-cv5z-warning-dark" "Summary"
 
-# --- ΨLab 3.1: coupled cluster ------------------------------------------------------------
+# --- ΨLab 4.0: coupled cluster ------------------------------------------------------------
 cat > "$OUT/method-menu.applescript" <<'APPLESCRIPT'
 on run argv
     tell application "System Events"

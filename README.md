@@ -1,6 +1,6 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 3.1** — see [Versions](#versions).
+**Current version: 4.0** — see [Versions](#versions).
 
 ΨLab computes small molecules with restricted Hartree–Fock, coupled cluster and Full CI:
 
@@ -68,9 +68,9 @@ Silicon and Intel Macs. The same calculations run in the terminal on Linux and m
 
 ## Versions
 
-### 3.1
+### 4.0
 Coupled cluster (CCSD, CCSD(T), CCSDT, CCSDTQ) and the method menu HF … Full CI — see
-[Version 3.1 (next version)](#version-31-next-version) at the end of this file.
+[Version 4.0 (next version)](#version-40-next-version) at the end of this file.
 
 ### 3.0
 - **H₂, LiH and H₂O** in eight correlation-consistent basis sets (aug-cc-pVXZ, aug-cc-pCVXZ,
@@ -321,9 +321,9 @@ function combination in LiH/aug-cc-pCVQZ, whose smallest overlap eigenvalue is 8
 (number of basis functions in parentheses; for H₂ the aug-cc-pCVXZ rows equal aug-cc-pVXZ, because
 H takes the aug-cc-pVXZ functions)
 
-### Coupled cluster (version 3.1)
+### Coupled cluster (version 4.0)
 
-ΨLab 3.1 adds CCSD, CCSD(T), CCSDT and CCSDTQ for H₂, LiH and H₂O on the canonical RHF orbitals,
+ΨLab 4.0 adds CCSD, CCSD(T), CCSDT and CCSDTQ for H₂, LiH and H₂O on the canonical RHF orbitals,
 all electrons correlated (no frozen core); the Fock matrix is used in full.
 
 - **CCSD and CCSD(T)** (`cc_closed_shell.cpp`): closed-shell, spin-adapted CCSD equations
@@ -633,9 +633,9 @@ XcodeGen project spec in `xcode/project.yml`. See [`app/SETUP.md`](app/SETUP.md)
   `-psilabMolecule`, `-psilabBasis`, `-psilabMethod`; screenshots) and publishes the **ΨLab-app**
   download.
 
-## Version 3.1 (next version)
+## Version 4.0 (next version)
 
-ΨLab 3.1 is the next version of the application, after 3.0. It adds coupled-cluster methods
+ΨLab 4.0 is the next version of the application, after 3.0. It adds coupled-cluster methods
 for H₂, LiH and H₂O; HeH⁺ (Szabo–Ostlund) is unchanged.
 
 - **Coupled cluster**: CCSD, CCSD(T), CCSDT and CCSDTQ for H₂, LiH and H₂O, all electrons
@@ -656,4 +656,4 @@ for H₂, LiH and H₂O; HeH⁺ (Szabo–Ostlund) is unchanged.
 - Usage: choose the method in the sidebar's **Method** menu (HF, CCSD, CCSD(T), CCSDT, CCSDTQ,
   Full CI) and press **Run**; the results are in the *Summary* and *Coupled cluster* tabs, the
   energies of all methods for H₂, LiH and H₂O/aug-cc-pVDZ are listed under
-  [Coupled cluster (version 3.1)](#coupled-cluster-version-31).
+  [Coupled cluster (version 4.0)](#coupled-cluster-version-40).
