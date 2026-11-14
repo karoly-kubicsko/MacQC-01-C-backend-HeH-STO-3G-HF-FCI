@@ -53,7 +53,7 @@ Use *File ▸ Add Files to "PsiLab"…* (or drag from Finder). Always: **"Copy i
 **Do not add** `backend/cli/main.cpp`, anything in `backend/tests/`, or `reference/` (the CLI and
 the test program have their own `main`, which would clash with the app's).
 
-Check *PsiLab target ▸ Build Phases ▸ Compile Sources*: exactly 18 Swift files + 32 C++ files, and
+Check *PsiLab target ▸ Build Phases ▸ Compile Sources*: exactly 19 Swift files + 32 C++ files, and
 *Copy Bundle Resources*: `Assets.xcassets` and the blue folder `basis`.
 
 ## 3. Build settings

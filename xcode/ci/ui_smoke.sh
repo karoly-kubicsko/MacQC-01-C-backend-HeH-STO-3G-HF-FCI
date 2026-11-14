@@ -7,8 +7,10 @@
 # (open method menu, H2O CCSD(T), LiH CCSDT, refused H2O CCSDTQ), and the job types of ΨLab 5.0
 # (open job menu, H2O RHF optimisation, LiH CCSD(T) frequencies and thermochemistry, H2O
 # opt+freq+SP with a CCSD(T)/aug-cc-pVTZ single point, the Output tab while a job runs, Cancel,
-# the refused CCSDTQ frequencies of H2O). The screen of the runner is 1024 pt wide: the
-# screenshots show that the six tabs fit at the minimum window width.
+# the refused CCSDTQ frequencies of H2O), and ΨLab 5.1 (the molecule of each optimisation step,
+# played step by step; the animated normal modes of LiH and H2O: two frames 0.3 s apart must
+# differ, and a few screenshots are printed into the log as small JPEGs). The screen of the
+# runner is 1024 pt wide: the screenshots show that the six tabs fit at the minimum window width.
 # Never fails the job: it only gathers evidence (screenshots + text) for review.
 #
 # Usage: ui_smoke.sh path/to/ΨLab.app output-dir
@@ -159,6 +161,27 @@ shot() {
     screencapture -x "$OUT/$1.png" || { echo "screencapture failed for $1"; return; }
     sips -s format jpeg -s formatOptions 60 -Z 1100 "$OUT/$1.png" --out "$OUT/$1.jpg" > /dev/null 2>&1 || true
     echo "screenshot: $1.png"
+}
+
+# ΨLab 5.1: two captures of the window $2 seconds apart (default 0.3); different files mean
+# that something moved.
+frames() {   # $1 = label, $2 = seconds between the captures
+    screencapture -x -R0,60,1024,650 "$OUT/$1-frame1.png" || return 0
+    sleep "${2:-0.3}"
+    screencapture -x -R0,60,1024,650 "$OUT/$1-frame2.png" || return 0
+    if cmp -s "$OUT/$1-frame1.png" "$OUT/$1-frame2.png"; then
+        echo "FRAMES $1: identical (nothing moved)"
+    else
+        echo "FRAMES $1: different (animated)"
+    fi
+}
+
+# A screenshot as a small JPEG, base64-encoded into the log for review.
+print_shot() {   # $1 = screenshot name
+    sips -s format jpeg -s formatOptions 45 -Z 760 "$OUT/$1.png" --out "$OUT/$1-log.jpg" > /dev/null 2>&1 || return 0
+    echo "=== BEGIN $1.jpg ==="
+    base64 -i "$OUT/$1-log.jpg" | fold -w 4000
+    echo "=== END ==="
 }
 
 # Screen size and the layout of the window (do the six tabs fit next to the sidebar?).
@@ -441,18 +464,30 @@ relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -p
 sleep 10
 view_tab "31-h2o-rhf-opt-optimisation" "Optimisation"
 layout "h2o-optimisation"
+# ΨLab 5.1: the molecule of the shown step (the last); still until Play steps is pressed
+frames "31-opt-still" 1.8
+dump_tab "31b-h2o-opt-playing" "Play steps"
+dump_tab "31c-h2o-opt-playing-later" ""
+frames "31-opt-playing" 1.8
+print_shot "31-h2o-rhf-opt-optimisation"
+print_shot "31b-h2o-opt-playing"
 view_tab "32-h2o-rhf-opt-summary" "Summary"
 
 echo "== LiH CCSD(T)/aug-cc-pVDZ frequencies and thermochemistry"
 relaunch -appearanceChoice light -psilabMolecule LiH -psilabBasis aug-cc-pVDZ -psilabMethod "CCSD(T)" -psilabJob freq
 sleep 15
 view_tab "33-lih-ccsd-t-frequencies" "Frequencies"
+frames "33-lih-mode"
+print_shot "33-lih-ccsd-t-frequencies"
 view_tab "34-lih-ccsd-t-thermochemistry" "Thermochemistry"
 
 echo "== H2O opt+freq+SP: RHF/aug-cc-pVDZ geometry and frequencies, CCSD(T)/aug-cc-pVTZ single point"
 relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob opt+freq+sp -psilabSPMethod "CCSD(T)" -psilabSPBasis aug-cc-pVTZ -psilabR 1.0 -psilabAngle 110 -psilabAutoRun YES
 sleep 60
 view_tab "35-h2o-job5-summary" "Summary"
+view_tab "35b-h2o-job5-frequencies" "Frequencies"
+frames "35b-h2o-modes"
+print_shot "35b-h2o-job5-frequencies"
 view_tab "36-h2o-job5-thermochemistry" "Thermochemistry"
 view_tab "37-h2o-job5-output" "Output"
 echo "::group::output file (Output tab)"

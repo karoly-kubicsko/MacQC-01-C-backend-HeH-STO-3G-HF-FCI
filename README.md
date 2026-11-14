@@ -1,6 +1,6 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 5.0** — see [Versions](#versions).
+**Current version: 5.1** — see [Versions](#versions).
 
 ΨLab computes small molecules with restricted Hartree–Fock, coupled cluster and Full CI:
 
@@ -24,7 +24,8 @@ complete output file that is written while the job runs.
 
 It shows energies, orbital energies, SCF, coupled-cluster and Davidson iterations, the largest
 cluster amplitudes, the leading CI determinants and natural-orbital occupations, every
-optimisation step, normal modes, thermochemical tables and the output file, and scans
+optimisation step with a drawing of the molecule (played step by step), every normal mode as an
+animation, thermochemical tables and the output file, and scans
 potential-energy curves with the minima marked. SwiftUI with Liquid Glass on macOS 26; runs on macOS 14 and later, on Apple
 Silicon and Intel Macs. The same calculations run in the terminal on Linux and macOS
 ([`psilab`](#terminal-version-linux-and-macos)).
@@ -79,15 +80,24 @@ Silicon and Intel Macs. The same calculations run in the terminal on Linux and m
     cluster* (energies, (T) correction, T1 diagnostic, amplitude counts and norms, largest
     amplitudes, convergence) and *Full CI* (energies, ⟨S²⟩, leading determinants, natural-orbital
     occupations, Davidson iterations; for HeH⁺ the CI vector, singlet weights and all states);
-  - *Optimisation*: start and optimised parameters with their change, whether H₂O kept C₂ᵥ, the
-    gradient method, the steps table (energy, ΔE, maximum and RMS force and step, converged), the
-    energy and maximum-force charts (logarithmic, with the threshold) and, for the step you click,
-    its geometry, internal coordinates (value, force, step) and convergence table; **Use optimised
-    geometry as input**;
-  - *Frequencies*, with the pages *Frequencies* (how the Hessian was computed — analytic, or
-    numerical with the displaced coordinates and the number of gradients or energies —, isotopes,
-    the table of modes with symmetry, wavenumber (imaginary in red), reduced mass, force constant
-    and IR intensity, an animated drawing of the selected mode and the IR stick spectrum) and
+  - *Optimisation*: the **molecule of each step**, drawn in its plane to the same scale for all
+    steps, with the bond lengths in Å and, for H₂O, the H–O–H angle (the starting geometry dashed),
+    next to the step's energy, ΔE, maximum force and geometry; the buttons and the slider go to the
+    first, previous, next or last step, **Play steps** shows the steps one after the other (0.7 s
+    each, the last held 1.6 s, then from the start); then the start and optimised parameters with
+    their change, whether H₂O kept C₂ᵥ, the gradient method, the steps table (energy, ΔE, maximum
+    and RMS force and step, converged; a click on a step number shows that step), the energy and
+    maximum-force charts (logarithmic, with the threshold; the shown step is marked) and, for the
+    shown step, its Cartesian geometry, internal coordinates (value, force, step) and convergence
+    table; **Use optimised geometry as input**;
+  - *Frequencies*, with the pages *Frequencies* (**every normal mode as an animation**: the atoms
+    vibrate about the equilibrium geometry (dashed) along the mode, at a speed proportional to its
+    wavenumber, with *Play*/*Pause*, the amplitude (at 1 the largest atomic displacement is a
+    quarter of the shortest bond) and arrows to the turning points; the table of modes with
+    symmetry, wavenumber (imaginary in red), reduced mass, force constant and IR intensity; the IR
+    stick spectrum, the selected mode in orange; how the Hessian was computed — analytic, or
+    numerical with the displaced coordinates and the number of gradients or energies —, isotopes)
+    and
     *Thermochemistry* (ZPE and the thermal corrections to U, H, A, G in Eₕ, kcal/mol and kJ/mol;
     E + ZPE, U, H, A, G; E, C_V and S by contribution in kcal/mol, cal/(mol K) and J/(mol K);
     moments of inertia, rotational constants and temperatures, vibrational temperatures);
@@ -109,6 +119,13 @@ Silicon and Intel Macs. The same calculations run in the terminal on Linux and m
   `xcode/project.yml`).
 
 ## Versions
+
+### 5.1
+The molecule of each geometry-optimisation step is drawn in the *Optimisation* tab (bond lengths,
+the H–O–H angle, the starting geometry dashed), with buttons, a slider and **Play steps**; every
+normal mode is animated in the *Frequencies* tab (speed proportional to the wavenumber, adjustable
+amplitude, arrows). The calculations and their results are those of 5.0; the output file and
+`psilab --version` say 5.1.
 
 ### 5.0
 Geometry optimisation, harmonic frequencies, IR intensities and thermochemistry, five job types,
@@ -1104,7 +1121,9 @@ XcodeGen project spec in `xcode/project.yml`. See [`app/SETUP.md`](app/SETUP.md)
   CCSDT and the refused CCSDTQ of H₂O/aug-cc-pVTZ; for 5.0 the open job menu, an H₂O RHF
   optimisation, LiH CCSD(T) frequencies and thermochemistry, H₂O optimisation + frequencies with
   a CCSD(T)/aug-cc-pVTZ single point, the Output tab while a job runs, Cancel and the refused
-  CCSDTQ frequencies of H₂O, selected with launch arguments `-psilabMolecule`, `-psilabBasis`,
+  CCSDTQ frequencies of H₂O; for 5.1 the molecule of the optimisation steps, still and while
+  *Play steps* runs, and the animated normal modes of LiH and H₂O (two captures 0.3 s apart must
+  differ; a few screenshots are printed into the log as small JPEGs), selected with launch arguments `-psilabMolecule`, `-psilabBasis`,
   `-psilabMethod`, `-psilabJob`, `-psilabSPMethod`, `-psilabSPBasis`, `-psilabR` (Å),
   `-psilabAngle`, `-psilabTab`, `-psilabAutoRun`; screenshots on the runner's 1024-pt-wide screen,
   where the window has its minimum width of 1000 pt) and publishes the **ΨLab-app** download.
