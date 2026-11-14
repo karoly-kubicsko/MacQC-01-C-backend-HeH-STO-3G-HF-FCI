@@ -3,10 +3,10 @@
 //  MacQC
 //
 //  ΨLab 5.0 job results: the Optimisation tab (the molecule of every step, drawn and played step
-//  by step (5.1), the steps table, energy and force charts, the geometry and internal coordinates
+//  by step (6.0), the steps table, energy and force charts, the geometry and internal coordinates
 //  of each step, the optimised geometry with a button that copies it into the inputs), the
 //  Frequencies tab with its Frequencies and Thermochemistry pages (every normal mode animated
-//  (5.1), the table of modes, the IR spectrum), and the job panel of the Summary tab.
+//  (6.0), the table of modes, the IR spectrum), and the job panel of the Summary tab.
 //
 
 import SwiftUI

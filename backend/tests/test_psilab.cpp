@@ -115,14 +115,14 @@ int main() {
                                                      });
     CHECK(h2.error.empty());
     CHECK(streamed == h2.text && pieces > 10);
-    CHECK(contains(h2.text, "\xCE\xA8Lab 5.1"));
+    CHECK(contains(h2.text, "\xCE\xA8Lab 6.0"));
     CHECK(contains(h2.text, "Job          Energy (energy)"));
     CHECK(contains(h2.text, "    | molecule = H2"));  // the input file as given
     CHECK(contains(h2.text, "Hartree-Fock (RHF) total energy:  -1.1287937367 E_h"));
     CHECK(contains(h2.text, "total energy (RHF)               -1.1287937367"));
     CHECK(contains(h2.text, "18 basis functions"));
     CHECK(contains(h2.text, "H   aug-cc-pVDZ   (5s2p)           -> [3s2p]"));
-    CHECK(contains(h2.text, "Normal termination of \xCE\xA8Lab 5.1"));
+    CHECK(contains(h2.text, "Normal termination of \xCE\xA8Lab 6.0"));
     CHECK(contains(psilab::estimate_text(psilab::parse_input_text("molecule = H2O\nbasis = aug-cc-pCVDZ\n")),
                    "aug-cc-pCVDZ is not defined for H"));
     // Full CI: H2 runs, H2O is refused with an explanation (in the output file and the error).

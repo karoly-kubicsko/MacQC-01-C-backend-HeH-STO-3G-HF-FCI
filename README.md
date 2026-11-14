@@ -1,6 +1,6 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 5.1** — see [Versions](#versions).
+**Current version: 6.0** — see [Versions](#versions).
 
 ΨLab computes small molecules with restricted Hartree–Fock, coupled cluster and Full CI:
 
@@ -120,12 +120,12 @@ Silicon and Intel Macs. The same calculations run in the terminal on Linux and m
 
 ## Versions
 
-### 5.1
+### 6.0
 The molecule of each geometry-optimisation step is drawn in the *Optimisation* tab (bond lengths,
 the H–O–H angle, the starting geometry dashed), with buttons, a slider and **Play steps**; every
 normal mode is animated in the *Frequencies* tab (speed proportional to the wavenumber, adjustable
 amplitude, arrows). The calculations and their results are those of 5.0; the output file and
-`psilab --version` say 5.1.
+`psilab --version` say 6.0.
 
 ### 5.0
 Geometry optimisation, harmonic frequencies, IR intensities and thermochemistry, five job types,
@@ -1121,7 +1121,7 @@ XcodeGen project spec in `xcode/project.yml`. See [`app/SETUP.md`](app/SETUP.md)
   CCSDT and the refused CCSDTQ of H₂O/aug-cc-pVTZ; for 5.0 the open job menu, an H₂O RHF
   optimisation, LiH CCSD(T) frequencies and thermochemistry, H₂O optimisation + frequencies with
   a CCSD(T)/aug-cc-pVTZ single point, the Output tab while a job runs, Cancel and the refused
-  CCSDTQ frequencies of H₂O; for 5.1 the molecule of the optimisation steps, still and while
+  CCSDTQ frequencies of H₂O; for 6.0 the molecule of the optimisation steps, still and while
   *Play steps* runs, and the animated normal modes of LiH and H₂O (two captures 0.3 s apart must
   differ; a few screenshots are printed into the log as small JPEGs), selected with launch arguments `-psilabMolecule`, `-psilabBasis`,
   `-psilabMethod`, `-psilabJob`, `-psilabSPMethod`, `-psilabSPBasis`, `-psilabR` (Å),

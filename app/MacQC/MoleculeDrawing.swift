@@ -2,7 +2,7 @@
 //  MoleculeDrawing.swift
 //  MacQC
 //
-//  ΨLab 5.1: drawings of the molecule. The Optimisation tab draws the geometry of every
+//  ΨLab 6.0: drawings of the molecule. The Optimisation tab draws the geometry of every
 //  optimisation step (bond lengths and the H–O–H angle written on it, the starting geometry
 //  dashed) and plays the steps one after the other; the Frequencies tab animates every normal
 //  mode. H₂, LiH and H₂O are linear or planar, so a drawing in the plane in which the atoms

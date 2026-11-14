@@ -7,7 +7,7 @@
 # (open method menu, H2O CCSD(T), LiH CCSDT, refused H2O CCSDTQ), and the job types of ΨLab 5.0
 # (open job menu, H2O RHF optimisation, LiH CCSD(T) frequencies and thermochemistry, H2O
 # opt+freq+SP with a CCSD(T)/aug-cc-pVTZ single point, the Output tab while a job runs, Cancel,
-# the refused CCSDTQ frequencies of H2O), and ΨLab 5.1 (the molecule of each optimisation step,
+# the refused CCSDTQ frequencies of H2O), and ΨLab 6.0 (the molecule of each optimisation step,
 # played step by step; the animated normal modes of LiH and H2O: two frames 0.3 s apart must
 # differ, and a few screenshots are printed into the log as small JPEGs). The screen of the
 # runner is 1024 pt wide: the screenshots show that the six tabs fit at the minimum window width.
@@ -163,7 +163,7 @@ shot() {
     echo "screenshot: $1.png"
 }
 
-# ΨLab 5.1: two captures of the window $2 seconds apart (default 0.3); different files mean
+# ΨLab 6.0: two captures of the window $2 seconds apart (default 0.3); different files mean
 # that something moved.
 frames() {   # $1 = label, $2 = seconds between the captures
     screencapture -x -R0,60,1024,650 "$OUT/$1-frame1.png" || return 0
@@ -464,7 +464,7 @@ relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -p
 sleep 10
 view_tab "31-h2o-rhf-opt-optimisation" "Optimisation"
 layout "h2o-optimisation"
-# ΨLab 5.1: the molecule of the shown step (the last); still until Play steps is pressed
+# ΨLab 6.0: the molecule of the shown step (the last); still until Play steps is pressed
 frames "31-opt-still" 1.8
 dump_tab "31b-h2o-opt-playing" "Play steps"
 dump_tab "31c-h2o-opt-playing-later" ""
