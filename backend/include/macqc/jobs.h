@@ -107,6 +107,6 @@ std::string job_estimate_text(const MolecularResult& prepared, const JobEstimate
 MolecularResult final_point_result(const JobResult& job, const MolecularInput& input);
 
 // The program version.
-constexpr const char* kProgramVersion = "5.0";
+constexpr const char* kProgramVersion = "6.0";
 
 }  // namespace macqc

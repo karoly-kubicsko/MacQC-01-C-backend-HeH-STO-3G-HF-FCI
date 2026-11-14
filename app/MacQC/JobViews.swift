@@ -2,11 +2,11 @@
 //  JobViews.swift
 //  MacQC
 //
-//  ΨLab 5.0 job results: the Optimisation tab (steps table, energy and force charts, the
-//  geometry and internal coordinates of each step, the optimised geometry with a button that
-//  copies it into the inputs), the Frequencies tab with its Frequencies and Thermochemistry
-//  pages (normal modes with an animated drawing, IR spectrum), and the job panel of the
-//  Summary tab.
+//  ΨLab 5.0 job results: the Optimisation tab (the molecule of every step, drawn and played step
+//  by step (6.0), the steps table, energy and force charts, the geometry and internal coordinates
+//  of each step, the optimised geometry with a button that copies it into the inputs), the
+//  Frequencies tab with its Frequencies and Thermochemistry pages (every normal mode animated
+//  (6.0), the table of modes, the IR spectrum), and the job panel of the Summary tab.
 //
 
 import SwiftUI
@@ -17,6 +17,10 @@ import Charts
 struct OptimizationView: View {
     @Bindable var model: AppModel
     @State private var selectedStep: Int?
+    /// Play steps is on (initially off; on with the launch argument -psilabPlaySteps YES, which the
+    /// UI smoke test uses: clicking the button by script takes too long on this page).
+    @State private var playing = UserDefaults.standard.bool(forKey: "psilabPlaySteps")
+    @State private var showStart = true
 
     var body: some View {
         if let out = model.result, let opt = out.optimization {
@@ -26,6 +30,9 @@ struct OptimizationView: View {
                         ErrorBanner(message: message)
                     }
                     header(out, opt)
+                    if !opt.history.isEmpty {
+                        moleculePanel(opt)
+                    }
                     resultPanel(out, opt)
 
                     SectionTitle("Steps")
@@ -39,6 +46,9 @@ struct OptimizationView: View {
                 }
                 .padding(20)
             }
+            .task(id: playing) {
+                await playSteps()
+            }
         } else {
             JobPlaceholder(model: model, title: "No optimisation", systemImage: "arrow.down.right.and.arrow.up.left",
                            text: "Choose the job Geometry optimisation (or Optimisation + frequencies) in the sidebar and press Run. The geometry inputs are the starting geometry.")
@@ -48,6 +58,145 @@ struct OptimizationView: View {
     private func shownStep(_ opt: MacQCOptimization) -> MacQCOptimizationStep? {
         if let s = selectedStep, let step = opt.history.first(where: { $0.step == s }) { return step }
         return opt.history.last
+    }
+
+    /// Position of the shown step in the history (the last step unless one was chosen).
+    private func shownIndex(_ opt: MacQCOptimization) -> Int {
+        if let s = selectedStep, let i = opt.history.firstIndex(where: { $0.step == s }) { return i }
+        return max(opt.history.count - 1, 0)
+    }
+
+    private func select(_ index: Int, in opt: MacQCOptimization) {
+        guard !opt.history.isEmpty else { return }
+        playing = false
+        selectedStep = opt.history[min(max(index, 0), opt.history.count - 1)].step
+    }
+
+    /// While Play is on: the next step every 0.7 s, the last one held for 1.6 s, then from the start.
+    private func playSteps() async {
+        guard playing else { return }
+        while !Task.isCancelled {
+            guard let opt = model.result?.optimization, opt.history.count > 1 else {
+                playing = false
+                return
+            }
+            let index = shownIndex(opt)
+            let last = opt.history.count - 1
+            try? await Task.sleep(for: .milliseconds(index == last ? 1600 : 700))
+            if Task.isCancelled || !playing { return }
+            selectedStep = opt.history[index == last ? 0 : index + 1].step
+        }
+    }
+
+    /// The molecule at the shown step (to the scale of the whole optimisation), its energy, forces
+    /// and geometry, and the buttons and slider that step through the optimisation or play it.
+    private func moleculePanel(_ opt: MacQCOptimization) -> some View {
+        let history = opt.history
+        let index = shownIndex(opt)
+        let step = history[index]
+        let frame = MoleculeFrame(geometries: ([opt.initialGeometry.atoms] + history.map { $0.geometry.atoms }).map { atomCoordinates($0) },
+                                  heavyAtom: heaviestAtom(step.geometry.atoms))
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 16) {
+                OptimizationGeometryCanvas(atoms: step.geometry.atoms,
+                                           start: showStart && index > 0 ? opt.initialGeometry.atoms : nil,
+                                           frame: frame)
+                    .frame(minWidth: 240, maxWidth: .infinity, minHeight: 230, maxHeight: 230)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Step \(step.step) of \(history.count)")
+                        .font(.headline)
+                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
+                        GridRow {
+                            Text("Energy").foregroundStyle(.secondary)
+                            Text(Fmt.energy10(step.energy) + " E_h")
+                        }
+                        GridRow {
+                            Text("ΔE").foregroundStyle(.secondary)
+                            Text(step.deltaE.map { String(format: "%+.2e E_h", $0) } ?? "–")
+                        }
+                        GridRow {
+                            Text("Max force").foregroundStyle(.secondary)
+                            Text(step.criterion(0).map { String(format: "%.2e E_h/bohr", $0) } ?? "–")
+                        }
+                        ForEach(Array(geometryRows(step.geometry).enumerated()), id: \.offset) { _, row in
+                            GridRow {
+                                Text(row.0).foregroundStyle(.secondary)
+                                Text(row.1)
+                            }
+                        }
+                    }
+                    .monospacedDigit()
+                    .textSelection(.enabled)
+                    Label(step.converged ? "Converged" : "Not converged yet",
+                          systemImage: step.converged ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(step.converged ? Color.green : Color.secondary)
+                        .font(.callout)
+                }
+                .frame(width: 260, alignment: .leading)
+            }
+            HStack(spacing: 8) {
+                Button {
+                    select(0, in: opt)
+                } label: {
+                    Image(systemName: "backward.end.fill")
+                }
+                .help("First step")
+                .accessibilityLabel("First step")
+                Button {
+                    select(index - 1, in: opt)
+                } label: {
+                    Image(systemName: "backward.frame.fill")
+                }
+                .help("Previous step")
+                .accessibilityLabel("Previous step")
+                .disabled(index == 0)
+                Button {
+                    playing.toggle()
+                } label: {
+                    Label(playing ? "Pause" : "Play steps", systemImage: playing ? "pause.fill" : "play.fill")
+                }
+                .help("Show the steps one after the other")
+                .disabled(history.count < 2)
+                Button {
+                    select(index + 1, in: opt)
+                } label: {
+                    Image(systemName: "forward.frame.fill")
+                }
+                .help("Next step")
+                .accessibilityLabel("Next step")
+                .disabled(index == history.count - 1)
+                Button {
+                    select(history.count - 1, in: opt)
+                } label: {
+                    Image(systemName: "forward.end.fill")
+                }
+                .help("Last step")
+                .accessibilityLabel("Last step")
+                Slider(value: Binding(get: { Double(index) },
+                                      set: { select(Int($0.rounded()), in: opt) }),
+                       in: 0...Double(max(history.count - 1, 1)), step: 1)
+                    .disabled(history.count < 2)
+                    .accessibilityLabel("Optimisation step")
+                Toggle("Starting geometry", isOn: $showStart)
+                    .toggleStyle(.checkbox)
+                    .help("Show the geometry of step 1 as dashed outlines")
+            }
+            Text("The molecule of each optimisation step, to the same scale for all steps: bond lengths in Å and, for H₂O, the H–O–H angle; dashed: the starting geometry. Choose a step with the buttons, the slider or a step number in the table, or press Play steps.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .dataPanel()
+    }
+
+    /// Bond lengths (and angle) of a geometry for the molecule panel.
+    private func geometryRows(_ g: MacQCGeometry) -> [(String, String)] {
+        if let r1 = g.R1, let r2 = g.R2, let a = g.angle {
+            return [("R₁(O–H)", String(format: "%.6f Å", r1 * Units.bohrToAngstrom)),
+                    ("R₂(O–H)", String(format: "%.6f Å", r2 * Units.bohrToAngstrom)),
+                    ("Angle", String(format: "%.4f°", a))]
+        }
+        if let r = g.R { return [("R", String(format: "%.6f Å", r * Units.bohrToAngstrom))] }
+        return []
     }
 
     private func header(_ out: MacQCOutput, _ opt: MacQCOptimization) -> some View {
@@ -146,6 +295,7 @@ struct OptimizationView: View {
                 ForEach(opt.history) { s in
                     GridRow {
                         Button {
+                            playing = false
                             selectedStep = s.step
                         } label: {
                             Text("\(s.step)")
@@ -167,7 +317,7 @@ struct OptimizationView: View {
             }
             .monospacedDigit()
             .textSelection(.enabled)
-            Text("Green values meet their threshold. Click a step number to show its geometry, internal coordinates and convergence table below.")
+            Text("Green values meet their threshold. Click a step number to show its molecule above and its geometry, internal coordinates and convergence table below.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -181,6 +331,7 @@ struct OptimizationView: View {
     }
 
     private func charts(_ opt: MacQCOptimization) -> some View {
+        let shown = shownStep(opt)?.step ?? 0
         let final = opt.finalEnergy
         let energies = opt.history.map { (step: $0.step, value: $0.energy - final) }
         let forces = opt.history.compactMap { s in s.criterion(0).map { (step: s.step, value: max($0, 1.0e-12)) } }
@@ -193,6 +344,9 @@ struct OptimizationView: View {
                         LineMark(x: .value("Step", p.step), y: .value("E - E_last (mE_h)", p.value * 1000))
                         PointMark(x: .value("Step", p.step), y: .value("E - E_last (mE_h)", p.value * 1000))
                     }
+                    RuleMark(x: .value("Shown step", shown))
+                        .foregroundStyle(Color.accentColor.opacity(0.6))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
                 }
                 .chartXAxisLabel("Step")
                 .frame(height: 180)
@@ -208,6 +362,9 @@ struct OptimizationView: View {
                         PointMark(x: .value("Step", p.step), y: .value("Max force", p.value))
                             .foregroundStyle(Color.orange)
                     }
+                    RuleMark(x: .value("Shown step", shown))
+                        .foregroundStyle(Color.accentColor.opacity(0.6))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
                     RuleMark(y: .value("Threshold", opt.criteria.maxForce))
                         .foregroundStyle(Color.green)
                         .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
@@ -419,6 +576,8 @@ struct FrequencyPage: View {
     var f: MacQCFrequencies
     @State private var selectedMode = 0
     @State private var animate = true
+    @State private var amplitude = 1.0
+    @State private var arrows = true
 
     var body: some View {
         ScrollView {
@@ -433,6 +592,15 @@ struct FrequencyPage: View {
                         .foregroundStyle(.secondary)
                 }
                 NotesPanel(notes: [], warnings: (out.job?.warnings ?? []) + (out.thermochemistry?.warnings ?? []))
+
+                SectionTitle("Normal modes")
+                if !f.modes.isEmpty {
+                    modeAnimations
+                }
+                modesTable
+                if !f.modes.isEmpty {
+                    irSpectrum
+                }
 
                 SectionTitle("How the Hessian was computed")
                 VStack(alignment: .leading, spacing: 6) {
@@ -459,18 +627,85 @@ struct FrequencyPage: View {
                     InfoRow("Residual curvature (cm⁻¹)", f.lowFrequencies.map { String(format: "%.2f", $0) }.joined(separator: " "))
                 }
                 .dataPanel()
-
-                SectionTitle("Normal modes")
-                modesTable
-                if !f.modes.isEmpty {
-                    HStack(alignment: .top, spacing: 16) {
-                        modeDrawing
-                        irSpectrum
-                    }
-                }
             }
             .padding(20)
         }
+    }
+
+    /// Every normal mode as an animation (three at most per row), with Play/Pause, the amplitude
+    /// and the displacement arrows; clicking a mode selects it in the table and the spectrum.
+    private var modeAnimations: some View {
+        let rows = stride(from: 0, to: f.modes.count, by: 3).map { Array($0..<min($0 + 3, f.modes.count)) }
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 14) {
+                Button {
+                    animate.toggle()
+                } label: {
+                    Label(animate ? "Pause" : "Play", systemImage: animate ? "pause.fill" : "play.fill")
+                }
+                .help(animate ? "Stop the vibrations" : "Animate the vibrations")
+                Toggle("Arrows", isOn: $arrows)
+                    .toggleStyle(.checkbox)
+                    .help("Arrows from the equilibrium position to the turning points")
+                Text("Amplitude")
+                    .foregroundStyle(.secondary)
+                Slider(value: $amplitude, in: 0.4...2.0)
+                    .frame(width: 140)
+                    .accessibilityLabel("Amplitude")
+                Spacer()
+            }
+            ForEach(rows, id: \.self) { row in
+                HStack(alignment: .top, spacing: 12) {
+                    ForEach(row, id: \.self) { index in
+                        modeCard(index)
+                    }
+                    if f.modes.count > 1 && row.count < 3 {
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+            Text("The atoms vibrate about the equilibrium geometry (dashed) along each normal mode, at a speed proportional to its wavenumber; the amplitude is exaggerated (at 1, the largest atomic displacement is a quarter of the shortest bond). Click a mode to select it in the table and in the IR spectrum.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .dataPanel()
+    }
+
+    private func modeCard(_ index: Int) -> some View {
+        let m = f.modes[index]
+        let selected = index == selectedMode
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("Mode \(index + 1)")
+                    .font(.subheadline.weight(.semibold))
+                if !m.symmetry.isEmpty {
+                    Text(m.symmetry)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 4)
+                Text(Fmt.wavenumber(m) + " cm⁻¹")
+                    .monospacedDigit()
+                    .foregroundStyle(m.imaginary ? Color.red : Color.primary)
+            }
+            NormalModeCanvas(atoms: f.geometry.atoms, displacement: m.displacement, wavenumber: m.wavenumber,
+                             animate: animate, amplitude: amplitude, arrows: arrows)
+                .frame(height: 170)
+                .accessibilityLabel("Animation of normal mode \(index + 1)")
+            Text(m.irIntensity.map { String(format: "IR intensity %.2f km/mol", $0) } ?? "IR intensity –")
+                .font(.caption)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+        }
+        .padding(10)
+        .frame(maxWidth: f.modes.count == 1 ? 460 : CGFloat.infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10).fill(selected ? Color.accentColor.opacity(0.08) : Color.clear))
+        .overlay(RoundedRectangle(cornerRadius: 10)
+            .strokeBorder(selected ? Color.accentColor : Color.secondary.opacity(0.25), lineWidth: selected ? 2 : 1))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            selectedMode = index
+        }
+        .accessibilityAddTraits(.isButton)
     }
 
     private var modesTable: some View {
@@ -510,27 +745,6 @@ struct FrequencyPage: View {
         .dataPanel()
     }
 
-    private var modeDrawing: some View {
-        let index = min(selectedMode, f.modes.count - 1)
-        let mode = f.modes[index]
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Mode \(index + 1): \(Fmt.wavenumber(mode)) cm⁻¹ \(mode.symmetry)")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Toggle("Animate", isOn: $animate)
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-            }
-            NormalModeCanvas(atoms: f.geometry.atoms, displacement: mode.displacement, animate: animate)
-                .frame(height: 220)
-            Text("Arrows: normalised Cartesian displacements, drawn in the plane of the molecule. Click a mode number in the table to show it.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .dataPanel()
-    }
-
     private var irSpectrum: some View {
         let sticks = f.modes.enumerated().compactMap { item -> (index: Int, w: Double, i: Double)? in
             guard let i = item.element.irIntensity, !item.element.imaginary else { return nil }
@@ -558,97 +772,6 @@ struct FrequencyPage: View {
             }
         }
         .dataPanel()
-    }
-}
-
-/// Atoms (circles) and the displacement of a normal mode (arrows), projected on the two
-/// Cartesian axes along which the molecule extends most; optionally animated.
-struct NormalModeCanvas: View {
-    var atoms: [MacQCAtom]
-    var displacement: [[Double]]
-    var animate: Bool
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !animate)) { context in
-            let phase = animate ? sin(context.date.timeIntervalSinceReferenceDate * 2 * Double.pi / 1.6) : 0
-            Canvas { gc, size in
-                draw(gc, size: size, phase: phase)
-            }
-        }
-        .accessibilityLabel("Normal mode drawing")
-    }
-
-    private func axes() -> (Int, Int) {
-        var spread = [0.0, 0.0, 0.0]
-        for k in 0..<3 {
-            let values = atoms.map { k < $0.position.count ? $0.position[k] : 0 }
-            spread[k] = (values.max() ?? 0) - (values.min() ?? 0)
-        }
-        let order = [0, 1, 2].sorted { spread[$0] > spread[$1] }
-        // horizontal: largest extent; vertical: second (for a linear molecule a zero range)
-        return (order[0], order[1])
-    }
-
-    private func draw(_ gc: GraphicsContext, size: CGSize, phase: Double) {
-        guard !atoms.isEmpty else { return }
-        let (h, v) = axes()
-        let width = Double(size.width), height = Double(size.height)
-        let xs: [Double] = atoms.map { h < $0.position.count ? $0.position[h] : 0 }
-        let ys: [Double] = atoms.map { v < $0.position.count ? $0.position[v] : 0 }
-        let cx = ((xs.max() ?? 0) + (xs.min() ?? 0)) / 2
-        let cy = ((ys.max() ?? 0) + (ys.min() ?? 0)) / 2
-        let extent = max((xs.max() ?? 0) - (xs.min() ?? 0), (ys.max() ?? 0) - (ys.min() ?? 0), 1.0)
-        let scale: Double = 0.55 * min(width, height * 1.6) / extent
-        let arrowScale = 1.6   // bohr per unit of the normalised displacement
-        func point(_ x: Double, _ y: Double) -> CGPoint {
-            CGPoint(x: width / 2 + (x - cx) * scale, y: height / 2 - (y - cy) * scale)
-        }
-        func shift(_ i: Int) -> [Double] {
-            displacement.count > i && displacement[i].count == 3 ? displacement[i] : [0, 0, 0]
-        }
-        // bonds between neighbouring atoms (distance below 3.6 bohr)
-        for i in 0..<atoms.count {
-            for j in (i + 1)..<atoms.count {
-                var d2 = 0.0
-                for k in 0..<3 {
-                    let a = k < atoms[i].position.count ? atoms[i].position[k] : 0
-                    let b = k < atoms[j].position.count ? atoms[j].position[k] : 0
-                    d2 += (a - b) * (a - b)
-                }
-                guard d2 < 3.6 * 3.6 else { continue }
-                let di = shift(i), dj = shift(j)
-                var path = Path()
-                path.move(to: point(xs[i] + 0.25 * phase * di[h], ys[i] + 0.25 * phase * di[v]))
-                path.addLine(to: point(xs[j] + 0.25 * phase * dj[h], ys[j] + 0.25 * phase * dj[v]))
-                gc.stroke(path, with: .color(.secondary), lineWidth: 4)
-            }
-        }
-        for (i, atom) in atoms.enumerated() {
-            let d = shift(i)
-            let p = point(xs[i] + 0.25 * phase * d[h], ys[i] + 0.25 * phase * d[v])
-            let radius: Double = atom.Z == 1 ? 11 : (atom.Z == 3 ? 17 : 15)
-            let color: Color = atom.Z == 1 ? Color(white: 0.85) : (atom.Z == 8 ? .red : .purple)
-            let rect = CGRect(x: Double(p.x) - radius, y: Double(p.y) - radius, width: 2 * radius, height: 2 * radius)
-            gc.fill(Path(ellipseIn: rect), with: .color(color))
-            gc.stroke(Path(ellipseIn: rect), with: .color(Color.primary.opacity(0.6)), lineWidth: 1)
-            gc.draw(Text(atom.symbol).font(.caption.bold()).foregroundStyle(atom.Z == 1 ? Color.black : Color.white), at: p)
-            // arrow of the displacement
-            let tip = point(xs[i] + arrowScale * d[h], ys[i] + arrowScale * d[v])
-            let base = point(xs[i], ys[i])
-            let dx = Double(tip.x - base.x), dy = Double(tip.y - base.y)
-            let length = (dx * dx + dy * dy).squareRoot()
-            guard length > 4 else { continue }
-            let ux = dx / length, uy = dy / length
-            let tx = Double(tip.x), ty = Double(tip.y)
-            var arrow = Path()
-            arrow.move(to: base)
-            arrow.addLine(to: tip)
-            arrow.move(to: tip)
-            arrow.addLine(to: CGPoint(x: tx - 9 * ux + 5 * uy, y: ty - 9 * uy - 5 * ux))
-            arrow.move(to: tip)
-            arrow.addLine(to: CGPoint(x: tx - 9 * ux - 5 * uy, y: ty - 9 * uy + 5 * ux))
-            gc.stroke(arrow, with: .color(.orange), lineWidth: 2)
-        }
     }
 }
 
