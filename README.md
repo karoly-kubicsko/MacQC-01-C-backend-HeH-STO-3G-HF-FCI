@@ -27,7 +27,7 @@ cluster amplitudes, the leading CI determinants and natural-orbital occupations,
 optimisation step, normal modes, thermochemical tables and the output file, and scans
 potential-energy curves with the minima marked. SwiftUI with Liquid Glass on macOS 26; runs on macOS 14 and later, on Apple
 Silicon and Intel Macs. The same calculations run in the terminal on Linux and macOS
-([`psilab`](#terminal-version-linux)).
+([`psilab`](#terminal-version-linux-and-macos)).
 
 ![App icon](app/icon/AppIcon-1024.png)
 
@@ -166,17 +166,24 @@ output file written while the job runs — see
 - Tabs Summary, Hartree–Fock, Full CI and Potential curve (scan R = 0.8 … 5.0 bohr with minima).
 - Light, Dark and System appearance; Export Results as JSON; Copy Summary as Text.
 
-## Terminal version (Linux)
+## Terminal version (Linux and macOS)
 
 The same calculation runs without the graphical interface as the terminal program `psilab`, on
-Linux (and macOS). It reads a plain-text input file and writes a plain-text output file.
+Linux and macOS (Apple Silicon and Intel). It reads a plain-text input file and writes a
+plain-text output file.
 
-Build and install once (needs a C++17 compiler and CMake):
+Build and install once (needs a C++17 compiler and CMake; on a Mac: `xcode-select --install` for
+Apple's compiler and CMake, e.g. `brew install cmake`):
 
 ```bash
 cmake -S . -B build && cmake --build build
 sudo cmake --install build                       # installs /usr/local/bin/psilab
 ```
+
+On macOS the matrix products go through Apple's Accelerate, as in the app, which is much faster
+for coupled cluster, Full CI and the integral transformations than the portable blocked GEMM
+(about 5 GFlop/s); `-DMACQC_USE_ACCELERATE=OFF` keeps the portable code. The output file names the
+code path in its header (*Matrices*). Both builds are tested in CI (Linux and macOS).
 
 Without administrator rights, install into your home folder instead with
 `cmake --install build --prefix ~/.local` (then `~/.local/bin` must be on your `PATH`). After that
@@ -1084,7 +1091,10 @@ XcodeGen project spec in `xcode/project.yml`. See [`app/SETUP.md`](app/SETUP.md)
 - `.github/workflows/backend.yml` builds the C++ backend and runs its tests on `ubuntu-latest`
   (Python 3 + NumPy regenerate the expected reports and verify they are unchanged). A second job
   installs PySCF and recomputes the stored integral and RHF reference values; run manually with
-  the input *full*, a third job checks every RHF case up to 341 basis functions.
+  the input *full*, a third job checks every RHF case up to 341 basis functions. A macOS job
+  (`macos-26`, Apple clang, Accelerate) builds the backend and `psilab`, runs all tests, installs
+  `psilab` and runs an optimisation + frequencies + single-point job with it, with the basis-set
+  files taken from the installed copy.
 - `.github/workflows/app.yml` builds the universal ΨLab app on a `macos-26` runner (XcodeGen +
   Xcode), checks that the basis-set files are inside the bundle, runs a UI smoke test (launch, all
   tabs, potential-curve scans, menus, light and dark appearance; H₂O RHF, LiH Full CI, an H₂ curve,
@@ -1170,6 +1180,10 @@ CCSD(T), of the method. The rigid-rotor, harmonic-oscillator entropy of H₂O is
 below the tabulated value, the size of the anharmonic and rotation–vibration contributions it
 leaves out.
 
+**Terminal version on macOS**: `psilab` builds with CMake on macOS too, with Apple's Accelerate for
+the matrix products; CI builds and tests it on Linux and on macOS (all tests, plus an installed
+`psilab` running job 5).
+
 **Not in this version**: analytic gradients of CCSDT and CCSDTQ (they need general-order Λ
 equations; the gradients are numerical), analytic Hessians of the correlated methods (numerical
 from analytic gradients), analytic correlated gradients with removed near-linear dependencies
@@ -1178,5 +1192,5 @@ from analytic gradients), analytic correlated gradients with removed near-linear
 **Usage**: choose the job in the sidebar's **Job** menu, the method and basis set (and for job 5
 the single-point method and basis set), set the starting geometry, temperature, pressure and
 convergence, and press **Run**; the *Optimisation*, *Frequencies* and *Output* tabs fill as the
-job runs. In the terminal: `job = opt+freq` (see [Terminal version](#terminal-version-linux));
+job runs. In the terminal: `job = opt+freq` (see [Terminal version](#terminal-version-linux-and-macos));
 `tail -f` follows the output file.

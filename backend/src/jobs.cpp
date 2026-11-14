@@ -237,6 +237,7 @@ void write_header(OutputWriter& w, const JobSettings& s, const std::string& echo
     w.line("  Started      " + local_time_string());
     w.line("  Job          " + job_title(s.type) + " (" + s.type + ")");
     w.line(strprintf("  Threads      %d", threads));
+    w.line(std::string("  Matrices     ") + gemm_backend_name());
     w.section("Input");
     w.write(echo);
     if (!echo.empty() && echo.back() != '\n') w.line();

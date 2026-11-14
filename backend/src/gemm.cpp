@@ -110,6 +110,14 @@ void gemm_serial(const View& A, const View& B, std::size_t m, std::size_t n, std
 
 }  // namespace
 
+const char* gemm_backend_name() {
+#if defined(MACQC_USE_ACCELERATE)
+    return "Apple Accelerate (BLAS)";
+#else
+    return "portable blocked GEMM";
+#endif
+}
+
 void gemm(bool trans_a, bool trans_b, std::size_t m, std::size_t n, std::size_t k, double alpha, const double* a,
           std::size_t lda, const double* b, std::size_t ldb, double beta, double* c, std::size_t ldc, int threads) {
 #if defined(MACQC_USE_ACCELERATE)

@@ -61,6 +61,39 @@ jobs:
           if ./build/psilab h2o-ccsdtq.inp; then echo "CCSDTQ frequencies of H2O must be refused"; exit 1; fi
           grep -q "CCSDTQ frequencies for H2O is not possible" h2o-ccsdtq.out
 
+  # The same build and tests on macOS (Apple clang, libc++, matrix products through Apple's
+  # Accelerate), and the installed terminal version: psilab must find its basis-set files in
+  # <prefix>/share/psilab/basis through the executable's path, without the source tree.
+  build-and-test-macos:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (Apple clang, Accelerate)
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Installed terminal version (job types, basis files from the installed copy)
+        run: |
+          cmake --install build --prefix "$RUNNER_TEMP/psilab"
+          mv basis basis.hidden          # the compiled-in source-tree location must not be used
+          cd "$RUNNER_TEMP"
+          ./psilab/bin/psilab --version
+          printf 'molecule = H2O\nmethod = HF\njob = opt+freq+sp\nsp_method = CCSD(T)\nR = 1.0 angstrom\nangle = 110\n' > job5.inp
+          ./psilab/bin/psilab --estimate job5.inp
+          ./psilab/bin/psilab job5.inp job5.out
+          grep -q "Matrices     Apple Accelerate" job5.out
+          grep -q "Stationary point found" job5.out
+          grep -q "Normal termination" job5.out
+          sed -n '/---- Summary/,$p' job5.out
+          cd "$GITHUB_WORKSPACE" && mv basis.hidden basis
+
   # Recomputes the stored reference values with PySCF (an independent program), so the
   # numbers the C++ tests compare with are reproducible.
   pyscf-reference:
