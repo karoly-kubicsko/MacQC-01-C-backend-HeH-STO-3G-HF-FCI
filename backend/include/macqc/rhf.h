@@ -2,6 +2,7 @@
 // spherical Gaussian basis sets (H2, LiH, H2O in ΨLab 3.0).
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <functional>
 #include <string>
@@ -65,6 +66,10 @@ struct RHFOptions {
     // starting density instead of the core-Hamiltonian guess (geometry optimisations,
     // finite differences).
     const Matrix* guess_orbitals = nullptr;
+    // Optional uniform electric field F (atomic units, about the origin): adds F . r to the
+    // core Hamiltonian of the electrons and -F . sum_A Z_A R_A to the nuclear energy, so that
+    // E(F) = E(0) - mu . F + ... (finite-field dipole moments; energies only, no gradients).
+    std::array<double, 3> field{0.0, 0.0, 0.0};
 };
 
 struct RHFIteration {

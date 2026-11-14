@@ -37,6 +37,7 @@ RHFOptions rhf_options(const ElectronicOptions& o, const Matrix* guess) {
     r.threads = o.threads;
     r.memory_limit_mb = o.memory_mb;
     r.guess_orbitals = guess;
+    r.field = o.field;
     return r;
 }
 

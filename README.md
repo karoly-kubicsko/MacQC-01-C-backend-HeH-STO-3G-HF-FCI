@@ -543,6 +543,59 @@ Verification (`backend/tests/test_optimizer.cpp`; references from
   residual below 1e-15; a CCSDT optimisation of H₂ with numerical gradients reaches the analytic
   Full CI optimum within 7e-6 Å; the step limit stops with a message.
 
+### Harmonic frequencies and thermochemistry (version 5.0)
+
+`hessian.cpp`, `frequencies.cpp`, `constants.cpp`.
+
+- **Hessian**: RHF analytic (stage 1: second-derivative integrals and CPHF, with analytic dipole
+  derivatives). CCSD, CCSD(T) and Full CI: central differences of analytic gradients along internal
+  coordinates (step 0.005 bohr / rad); for C₂ᵥ H₂O the symmetry-adapted S1 (A1, symmetric stretch),
+  S2 (A1, bend) and S3 (B2, antisymmetric stretch), 6 gradients; for H₂ and LiH the bond, 2
+  gradients. The Cartesian Hessian is Bᵀ H_q B + Σ g_q ∂²q/∂x², exact also away from a stationary
+  point. The displaced geometries are superimposed on the reference (mass-weighted, Horn's
+  quaternion method, i.e. the Eckart frame), so the relaxed dipole moments of the gradients give
+  the dipole derivatives. CCSDT and CCSDTQ: second differences of energies along the same
+  coordinates (mixed A1 × B2 terms vanish by symmetry; C₂ᵥ H₂O 9 energies, diatomics 2), dipole
+  moments by finite fields μ = −dE/dF at the displaced geometries (10 and 4 more energies). With
+  removed near-linear dependencies, RHF also differentiates its analytic gradients numerically.
+  The output and the app say which was used. The SCF accepts a uniform electric field for this
+  (and for the tests of the relaxed dipoles).
+- **Normal modes**: masses of the most abundant isotopes (AME 2020: ¹H 1.007825031898 u,
+  ⁷Li 7.016003434 u, ¹⁶O 15.994914619257 u); mass-weighted Hessian in the orthonormal complement of
+  the translations and of the rotations about the principal axes through the centre of mass
+  (Eckart conditions; 5 for linear molecules); harmonic wavenumbers (negative = imaginary),
+  normalised Cartesian displacements, reduced masses, force constants (mdyn/Å), IR intensities
+  (km/mol) from dμ/dQ, symmetry species for C₂ᵥ H₂O (A1, B2) and diatomics; the residual
+  curvature of the translations and rotations is printed as a check.
+- **Thermochemistry** (CODATA 2018): ideal-gas translation at the chosen pressure (Sackur–Tetrode),
+  rigid rotor (linear for H₂ and LiH, nonlinear for H₂O; σ(H₂) = 2, σ(LiH) = 1, σ(H₂O) = 2), harmonic
+  oscillators with the zero-point energy, closed-shell singlet (q_el = 1). Reported: zero-point
+  energy; thermal corrections and totals of U, H = U + k_BT, S (total and its electronic,
+  translational, rotational and vibrational parts), A = U − TS, G = H − TS; C_V; moments of
+  inertia, rotational constants (GHz, cm⁻¹), rotational and vibrational temperatures; in hartree,
+  kcal/mol, kJ/mol and cal/(mol K) (also J/(mol K)). Imaginary frequencies and those below 10 cm⁻¹
+  are left out of the vibrational sums, with a warning.
+
+Verification (`backend/tests/test_frequencies.cpp`; `reference/pyscf_frequency_reference.py` →
+`backend/tests/data/frequency_reference.json`):
+
+- RHF wavenumbers, reduced masses and force constants against PySCF's analytic Hessian and
+  harmonic analysis (given the same AME 2020 masses; by default PySCF uses standard atomic
+  weights such as 1.008 for H, which shifts the wavenumbers of H₂O by 0.4 cm⁻¹) at the
+  PySCF/geomeTRIC geometries of H₂O (aug-cc-pVDZ, aug-cc-pVTZ), LiH and H₂: within 2e-3 cm⁻¹,
+  1e-6 u and 1e-5 mdyn/Å.
+- Thermochemistry against a hand evaluation of the formulas with CODATA 2018 (in the reference
+  script, independent of both programs): ZPE, U, H, G, A within 1e-9 Eₕ, entropies and C_V within
+  5e-5 J/(mol K); against PySCF's `thermo` (older CODATA constants) within 3e-6 Eₕ and
+  5e-3 J/(mol K).
+- Numerical Hessians: finite differences of analytic RHF gradients reproduce the analytic
+  wavenumbers within 0.05 cm⁻¹ and the IR intensities within 6e-4 km/mol; for CCSD(T) (H₂O) and
+  Full CI (LiH) the gradient-based and the energy-based Hessians agree within 0.03 cm⁻¹, and the IR
+  intensities from relaxed dipoles and from finite-field dipoles within 0.007 km/mol; relaxed
+  dipole moments equal −dE/dF within 1e-9 e·bohr.
+- At linear H₂O the degenerate bend is imaginary (twice) and left out of the thermochemistry with
+  two warnings.
+
 ### Layout
 
 ```
@@ -556,7 +609,9 @@ backend/src/             linalg, integrals, scf, fci, report, calculation, api (
                          and CCSD(T) Lambda equations and densities), correlated_gradient
                          (relaxed densities, Z-vector), gradient (energies and gradients of
                          every method at any geometry); internal_coordinates, optimizer
-                         (redundant internal coordinates, RFO, BFGS)
+                         (redundant internal coordinates, RFO, BFGS); hessian (analytic and
+                         numerical Hessians, dipole derivatives), frequencies (normal modes,
+                         thermochemistry), constants (CODATA 2018, AME 2020)
 backend/tools/           cc_diagrams.py: generates and verifies the coupled-cluster diagrams
 basis/                   Gaussian94 basis-set files from basissetexchange.org (+ README)
 backend/cli/main.cpp     developer command-line tool `macqc` (flags / JSON)
@@ -741,7 +796,8 @@ How the backend is wired into the ΨLab Xcode target (the full step-by-step guid
    `molecule.cpp`, `basis.cpp`, `gto_integrals.cpp`, `rhf.cpp`, `molecular.cpp`, `gemm.cpp`,
    `mo_integrals.cpp`, `ci.cpp`, `cc_general.cpp`, `cc_closed_shell.cpp`, `cc_estimate.cpp`,
    `gto_derivatives.cpp`, `rhf_derivatives.cpp`, `tensor.cpp`, `correlated_gradient.cpp`,
-   `cc_gradient.cpp`, `gradient.cpp`, `internal_coordinates.cpp`, `optimizer.cpp`, `job.cpp`,
+   `cc_gradient.cpp`, `gradient.cpp`, `internal_coordinates.cpp`, `optimizer.cpp`, `constants.cpp`,
+   `frequencies.cpp`, `hessian.cpp`, `job.cpp`,
    `calculation.cpp`, `api.cpp`; add the folder `basis/`
    as a folder reference to *Copy Bundle Resources* (the app passes its path as `basisDirectory`). Do **not** add `backend/cli/main.cpp` or anything in
    `backend/tests/` (they have their own `main`). Headers (`backend/include/macqc/*.h` and

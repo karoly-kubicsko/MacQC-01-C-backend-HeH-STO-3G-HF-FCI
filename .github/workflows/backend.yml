@@ -84,6 +84,9 @@ jobs:
       - name: CCSD, CCSD(T) and Full CI gradients (H2, LiH, H2O)
         run: python3 reference/pyscf_correlated_gradient_reference.py --check
 
+      - name: RHF frequencies and thermochemistry (PySCF analytic Hessians)
+        run: python3 reference/pyscf_frequency_reference.py --check
+
       - name: Optimised geometries (PySCF gradients + geomeTRIC)
         run: >
           python3 reference/pyscf_optimization_reference.py --check --only
