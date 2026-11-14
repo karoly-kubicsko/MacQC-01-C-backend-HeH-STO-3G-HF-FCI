@@ -33,9 +33,11 @@ Silicon and Intel Macs. The same calculations run in the terminal on Linux and m
 
 ## Using the app
 
-- **Download**: *Actions* ▸ *app* ▸ the newest run on `main` ▸ *Artifacts* ▸ **ΨLab-app**. Unzip
-  `ΨLab-app.zip`, then the `ΨLab.app.zip` inside it. The app is not notarized: right-click
-  `ΨLab.app` ▸ *Open* once, or run `xattr -dr com.apple.quarantine` on it.
+- **Download**: the repository's **Releases** page has every version, 1.0 to the current one
+  (`PsiLab-<version>.app.zip`, built by CI from `main`); the newest build of a branch or pull
+  request is under *Actions* ▸ *app* ▸ the run ▸ *Artifacts* ▸ **ΨLab-app** (kept 90 days; it
+  contains `ΨLab.app.zip`). Unzip it; the app is not notarized: right-click `ΨLab.app` ▸ *Open*
+  once, or run `xattr -dr com.apple.quarantine` on it.
 - **Sidebar**: the **molecule** (HeH⁺, H₂, LiH, H₂O) and, for H₂, LiH and H₂O:
   - the **job** (a menu, in this order): 1 *Energy*, 2 *Geometry optimisation*, 3 *Frequencies*
     (at the input geometry; a warning if it is not a stationary point), 4 *Optimisation +
@@ -1106,6 +1108,11 @@ XcodeGen project spec in `xcode/project.yml`. See [`app/SETUP.md`](app/SETUP.md)
   `-psilabMethod`, `-psilabJob`, `-psilabSPMethod`, `-psilabSPBasis`, `-psilabR` (Å),
   `-psilabAngle`, `-psilabTab`, `-psilabAutoRun`; screenshots on the runner's 1024-pt-wide screen,
   where the window has its minimum width of 1000 pt) and publishes the **ΨLab-app** download.
+  Every build of `main` is also published as a GitHub Release, one per app version (tag
+  `v<version>`, asset `PsiLab-<version>.app.zip`; a later build of the same version replaces it).
+- `.github/workflows/releases.yml` turned the last builds of versions 1.0 to 4.0 (CI artifacts)
+  into the releases `v1.0` … `v4.0`; it runs when the file changes on `main` or by hand and leaves
+  existing releases alone.
 
 ## Version 5.0 (next version)
 
