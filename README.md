@@ -1125,7 +1125,7 @@ XcodeGen project spec in `xcode/project.yml`. See [`app/SETUP.md`](app/SETUP.md)
   *Play steps* runs, and the animated normal modes of LiH and H₂O (two captures 0.3 s apart must
   differ; a few screenshots are printed into the log as small JPEGs), selected with launch arguments `-psilabMolecule`, `-psilabBasis`,
   `-psilabMethod`, `-psilabJob`, `-psilabSPMethod`, `-psilabSPBasis`, `-psilabR` (Å),
-  `-psilabAngle`, `-psilabTab`, `-psilabAutoRun`; screenshots on the runner's 1024-pt-wide screen,
+  `-psilabAngle`, `-psilabTab`, `-psilabAutoRun`, `-psilabPlaySteps`; screenshots on the runner's 1024-pt-wide screen,
   where the window has its minimum width of 1000 pt) and publishes the **ΨLab-app** download.
   Every build of `main` is also published as a GitHub Release, one per app version (tag
   `v<version>`, asset `PsiLab-<version>.app.zip`; a later build of the same version replaces it).

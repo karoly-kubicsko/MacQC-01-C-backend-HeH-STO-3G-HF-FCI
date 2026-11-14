@@ -466,12 +466,16 @@ view_tab "31-h2o-rhf-opt-optimisation" "Optimisation"
 layout "h2o-optimisation"
 # ΨLab 6.0: the molecule of the shown step (the last); still until Play steps is pressed
 frames "31-opt-still" 1.8
-dump_tab "31b-h2o-opt-playing" "Play steps"
-dump_tab "31c-h2o-opt-playing-later" ""
-frames "31-opt-playing" 1.8
 print_shot "31-h2o-rhf-opt-optimisation"
-print_shot "31b-h2o-opt-playing"
 view_tab "32-h2o-rhf-opt-summary" "Summary"
+# Play steps, switched on by a launch argument (a scripted click on the button takes longer than
+# the AppleScript time limit on this page): the shown step changes while it plays.
+relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob opt -psilabR 1.0 -psilabAngle 110 -psilabPlaySteps YES
+sleep 10
+view_tab "31b-h2o-opt-playing" "Optimisation"
+frames "31-opt-playing" 1.8
+dump_tab "31c-h2o-opt-playing-later" ""
+print_shot "31b-h2o-opt-playing"
 
 echo "== LiH CCSD(T)/aug-cc-pVDZ frequencies and thermochemistry"
 relaunch -appearanceChoice light -psilabMolecule LiH -psilabBasis aug-cc-pVDZ -psilabMethod "CCSD(T)" -psilabJob freq

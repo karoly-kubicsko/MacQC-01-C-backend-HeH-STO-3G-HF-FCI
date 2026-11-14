@@ -17,7 +17,9 @@ import Charts
 struct OptimizationView: View {
     @Bindable var model: AppModel
     @State private var selectedStep: Int?
-    @State private var playing = false
+    /// Play steps is on (initially off; on with the launch argument -psilabPlaySteps YES, which the
+    /// UI smoke test uses: clicking the button by script takes too long on this page).
+    @State private var playing = UserDefaults.standard.bool(forKey: "psilabPlaySteps")
     @State private var showStart = true
 
     var body: some View {
