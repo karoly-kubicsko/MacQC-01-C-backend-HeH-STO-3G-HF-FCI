@@ -2,8 +2,10 @@
 //  SidebarView.swift
 //  MacQC
 //
-//  Input sidebar: molecule, geometry, basis set and method, the size of the calculation
-//  (with warnings and refusals), appearance, and the Run bar.
+//  Input sidebar: molecule, job (ΨLab 5.0), geometry (the start of an optimisation, with the
+//  optimised values and a button that copies them), method and basis set, the single point of
+//  job 5, thermochemistry and optimisation settings, the size of the calculation (each step of
+//  the job, analytic or numerical, with warnings and refusals), appearance, and the Run bar.
 //
 
 import SwiftUI
@@ -30,6 +32,7 @@ struct SidebarView: View {
             }
 
             if model.isGeneral {
+                jobSection
                 generalSections
             } else {
                 hehSections
@@ -110,9 +113,33 @@ struct SidebarView: View {
 
     // MARK: H2, LiH, H2O
 
+    private var jobSection: some View {
+        Section("Job") {
+            LabeledContent("Job") {
+                Menu {
+                    Picker("Job", selection: $model.job) {
+                        ForEach(JobChoice.allCases) { choice in
+                            Text("\(choice.number)   \(choice.title)").tag(choice)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                } label: {
+                    Text(model.job.shortTitle)
+                }
+                .fixedSize()
+                .accessibilityLabel("Job")
+            }
+            Text(model.job.title + ": " + model.job.explanation)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .disabled(model.isRunning || model.isScanning)
+    }
+
     @ViewBuilder
     private var generalSections: some View {
-        Section("Geometry") {
+        Section(model.job.hasOptimization ? "Starting geometry" : "Geometry") {
             LabeledContent("\(model.molecule.bondLabel) (Å)") {
                 numberField("bond length angstrom", value: $model.bondLengthAngstrom)
             }
@@ -131,6 +158,20 @@ struct SidebarView: View {
             .accessibilityLabel("Experimental geometry")
             .frame(maxWidth: .infinity)
             .disabled(model.isRunning)
+            if let g = model.optimizedGeometry {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Optimised: " + optimizedText(g))
+                        .font(.caption.monospacedDigit())
+                        .textSelection(.enabled)
+                    Button("Use optimised geometry") {
+                        model.useOptimizedGeometry()
+                    }
+                    .secondaryActionStyle()
+                    .accessibilityLabel("Use optimised geometry")
+                    .frame(maxWidth: .infinity)
+                    .disabled(!model.canUseOptimizedGeometry || model.isRunning)
+                }
+            }
         }
 
         Section("Method and basis set") {
@@ -154,9 +195,83 @@ struct SidebarView: View {
         }
         .disabled(model.isRunning || model.isScanning)
 
+        if model.job.hasSinglePoint {
+            Section("Single-point energy") {
+                Picker("SP method", selection: $model.spMethod) {
+                    Text("Same (\(model.method.title))").tag(MethodChoice?.none)
+                    ForEach(MethodChoice.allCases) { choice in
+                        Text(choice.title).tag(MethodChoice?.some(choice))
+                    }
+                }
+                .pickerStyle(.menu)
+                Picker("SP basis set", selection: $model.spBasis) {
+                    Text("Same (\(model.basis))").tag(String?.none)
+                    ForEach(BasisSets.all, id: \.self) { name in
+                        Text(name).tag(String?.some(name))
+                    }
+                }
+                .pickerStyle(.menu)
+                Text("Energy at the optimised geometry; E + ZPE, U, H and G add the thermal corrections of the frequency step.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .disabled(model.isRunning || model.isScanning)
+        }
+
+        if model.job.hasFrequencies {
+            Section("Thermochemistry") {
+                LabeledContent("Temperature (K)") {
+                    numberField("temperature", value: $model.temperature)
+                }
+                LabeledContent("Pressure (Pa)") {
+                    numberField("pressure", value: $model.pressure)
+                }
+                HStack {
+                    Button("1 atm") { model.pressure = 101325 }
+                    Button("1 bar") { model.pressure = 100000 }
+                    Spacer()
+                }
+                .controlSize(.small)
+                Text("Ideal gas, rigid rotor, harmonic oscillators; CODATA 2018 constants, AME 2020 isotope masses.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .disabled(model.isRunning || model.isScanning)
+        }
+
+        if model.job.hasOptimization {
+            Section("Optimisation") {
+                Picker("Convergence", selection: $model.tightConvergence) {
+                    Text("Normal").tag(false)
+                    Text("Tight").tag(true)
+                }
+                .pickerStyle(.segmented)
+                Stepper(value: $model.maxSteps, in: 5...500, step: 5) {
+                    LabeledContent("Maximum steps", value: "\(model.maxSteps)")
+                }
+                Text(model.tightConvergence
+                     ? "Max force 1.5e-5, RMS force 1.0e-5 E_h/bohr; max step 6.0e-5, RMS step 4.0e-5 bohr; energy change 1e-8 E_h."
+                     : "Max force 4.5e-4, RMS force 3.0e-4 E_h/bohr; max step 1.8e-3, RMS step 1.2e-3 bohr; energy change 1e-6 E_h.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .disabled(model.isRunning || model.isScanning)
+        }
+
         Section("Size of the calculation") {
             EstimatePanel(model: model)
         }
+    }
+
+    private func optimizedText(_ g: (R: Double, angle: Double?, symmetric: Bool)) -> String {
+        var text = String(format: "%@ = %.6f Å", model.molecule.bondLabel, g.R * Units.bohrToAngstrom)
+        if let a = g.angle {
+            text += String(format: ", angle %.4f°", a)
+        }
+        if !g.symmetric {
+            text += " (not C₂ᵥ: mean of both O–H)"
+        }
+        return text
     }
 
     private func numberField(_ title: String, value: Binding<Double>) -> some View {
@@ -207,7 +322,7 @@ struct SidebarView: View {
 
                 if model.isRunning && model.isGeneral {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
-                        Text(model.progress.text + "  ·  " + model.elapsedText(at: context.date))
+                        Text(model.progressDescription + "  ·  " + model.elapsedText(at: context.date))
                             .font(.caption.monospacedDigit())
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -227,8 +342,8 @@ struct SidebarView: View {
                         .foregroundStyle(.red)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else if model.isGeneral && !model.isRunning && model.isLongCalculation,
-                          let e = model.estimate?.estimate {
-                    Label("Long calculation: \(Fmt.duration(e.totalSeconds)).", systemImage: "clock.badge.exclamationmark")
+                          let seconds = model.estimatedSeconds {
+                    Label("Long calculation: \(Fmt.duration(seconds)).", systemImage: "clock.badge.exclamationmark")
                         .font(.caption)
                         .foregroundStyle(.orange)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -270,7 +385,19 @@ struct EstimatePanel: View {
                         InfoRow("Orbitals (occ./virt.)", "\(c.occupied) / \(c.virtuals)")
                         InfoRow("\(MethodChoice.title(of: c.method)) memory", Fmt.memory(c.memoryMB))
                     }
-                    if model.refusal == nil {
+                    if let j = out.job, j.type != "energy" {
+                        ForEach(j.estimate.steps) { step in
+                            VStack(alignment: .leading, spacing: 2) {
+                                InfoRow(step.name, model.refusal == nil ? Fmt.duration(step.seconds) : "")
+                                Text("\(MethodChoice.title(of: step.method))/\(step.basis): \(step.how)")
+                                    .font(.caption)
+                                    .foregroundStyle(step.analytic ? Color.secondary : Color.orange)
+                            }
+                        }
+                        if model.refusal == nil {
+                            InfoRow("Estimated time (job)", Fmt.duration(j.estimate.totalSeconds) + " (\(e.threads) threads)")
+                        }
+                    } else if model.refusal == nil {
                         InfoRow("Estimated time", Fmt.duration(e.totalSeconds) + " (\(e.threads) threads)")
                     }
                 }
@@ -279,7 +406,7 @@ struct EstimatePanel: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                ForEach(out.warnings ?? [], id: \.self) { warning in
+                ForEach(warnings(out), id: \.self) { warning in
                     Label(warning, systemImage: "clock.badge.exclamationmark")
                         .font(.caption)
                         .foregroundStyle(.orange)
@@ -299,5 +426,13 @@ struct EstimatePanel: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// Warnings of the energy and, for jobs, of the whole job (its "long calculation" warning
+    /// replaces the one of a single energy).
+    private func warnings(_ out: MacQCOutput) -> [String] {
+        guard let j = out.job, j.type != "energy" else { return out.warnings ?? [] }
+        let own = (out.warnings ?? []).filter { !$0.hasPrefix("Long calculation") }
+        return own + j.estimate.warnings
     }
 }

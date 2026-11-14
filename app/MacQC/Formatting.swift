@@ -78,6 +78,27 @@ nonisolated enum Fmt {
         String(format: "%.4f bohr", x)
     }
 
+    /// Harmonic wavenumber with "i" for imaginary modes, e.g. "1648.52" or "523.11i".
+    static func wavenumber(_ m: MacQCNormalMode) -> String {
+        m.imaginary ? String(format: "%.2fi", abs(m.wavenumber)) : String(format: "%.2f", m.wavenumber)
+    }
+
+    /// A geometric parameter: "R(O1-H2) = 0.958852 Å" or "A(H2-O1-H3) = 104.3424°".
+    static func parameter(_ p: MacQCParameter) -> String {
+        p.angle ? String(format: "%@ = %.4f°", p.name, p.value)
+                : String(format: "%@ = %.6f Å (%.6f bohr)", p.name, p.value * Units.bohrToAngstrom, p.value)
+    }
+
+    /// Value of a geometric parameter (bohr or degrees) as "0.958852 Å" or "104.3424°".
+    static func parameterValue(_ v: Double, angle: Bool) -> String {
+        angle ? String(format: "%.4f°", v) : String(format: "%.6f Å", v * Units.bohrToAngstrom)
+    }
+
+    /// Signed change of a geometric parameter (bohr or degrees).
+    static func parameterChange(_ d: Double, angle: Bool) -> String {
+        angle ? String(format: "%+.4f°", d) : String(format: "%+.6f Å", d * Units.bohrToAngstrom)
+    }
+
     /// Length given in bohr, shown as "0.7743 Å (1.4632 bohr)".
     static func lengthBoth(_ bohr: Double, decimals: Int = 4) -> String {
         let digits = Int32(decimals)  // "%.*f" takes a C int
@@ -88,4 +109,8 @@ nonisolated enum Fmt {
 nonisolated enum Units {
     /// 1 bohr in angstrom (CODATA 2022).
     static let bohrToAngstrom = 0.529177210544
+    /// J/mol per hartree (CODATA 2018, as the backend's thermochemistry).
+    static let joulePerMolPerHartree = 2_625_499.639_479_9
+    /// J per thermochemical calorie.
+    static let joulePerCalorie = 4.184
 }

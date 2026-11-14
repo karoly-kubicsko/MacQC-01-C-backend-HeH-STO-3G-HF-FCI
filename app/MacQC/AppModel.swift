@@ -2,16 +2,34 @@
 //  AppModel.swift
 //  MacQC
 //
-//  Observable application state: sidebar inputs, size estimate, the running job, last result,
-//  potential-curve scan, and the menu actions (export text / JSON, copy summary).
+//  Observable application state: sidebar inputs (molecule, job type, method, basis set,
+//  thermochemistry and optimisation settings), size estimate, the running job with its streamed
+//  output file, last result, potential-curve scan, and the menu actions (export text / JSON,
+//  copy summary).
 //
 
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+/// The six tabs of the detail area (ΨLab 5.0). Methods, Frequencies and Output have pages.
 enum DetailTab: Hashable {
-    case summary, hartreeFock, coupledCluster, fullCI, potentialCurve, report
+    case summary, methods, optimization, frequencies, potentialCurve, output
+}
+
+/// Pages of the Methods tab.
+enum MethodsPage: String, CaseIterable, Identifiable {
+    case hartreeFock = "Hartree–Fock"
+    case coupledCluster = "Coupled cluster"
+    case fullCI = "Full CI"
+    var id: String { rawValue }
+}
+
+/// Pages of the Frequencies tab.
+enum VibrationPage: String, CaseIterable, Identifiable {
+    case frequencies = "Frequencies"
+    case thermochemistry = "Thermochemistry"
+    var id: String { rawValue }
 }
 
 /// One point of the potential-curve scan: the (R)HF energy and that of the correlated method
@@ -66,6 +84,15 @@ final class AppModel {
     var bondLengths: [MoleculeChoice: Double] = [:]   // bohr; missing = experimental value
     var waterAngle: Double = MoleculeChoice.defaultWaterAngle
 
+    // Job (ΨLab 5.0)
+    var job: JobChoice = .energy
+    var spMethod: MethodChoice? = nil      // single point of job 5; nil = the job's method
+    var spBasis: String? = nil             // nil = the job's basis set
+    var temperature: Double = 298.15       // K
+    var pressure: Double = 101325          // Pa
+    var tightConvergence = false
+    var maxSteps = 50
+
     /// The bond length in angstrom; reads and writes `R` (bohr).
     var rAngstrom: Double {
         get { R * Units.bohrToAngstrom }
@@ -93,37 +120,74 @@ final class AppModel {
     /// Changes whenever an input that affects the estimate changes.
     var estimateKey: String {
         guard isGeneral else { return "HeH+" }
-        return "\(molecule.rawValue)|\(basis)|\(method.rawValue)|\(bondLength)|\(waterAngle)"
+        return "\(molecule.rawValue)|\(basis)|\(method.rawValue)|\(bondLength)|\(waterAngle)|\(job.rawValue)|"
+            + "\(spMethod?.rawValue ?? "")|\(spBasis ?? "")|\(temperature)|\(pressure)|\(tightConvergence)|\(maxSteps)"
     }
 
     /// The backend refuses the calculation (reason), or the inputs are invalid.
     var refusal: String? {
+        guard isGeneral, let e = estimate else { return nil }
+        if let r = e.job?.estimate.refusal { return r }
+        if let r = e.refusal { return r }
+        if e.estimate == nil, let message = e.error { return message }
+        return nil
+    }
+
+    /// Refusal of a single energy with these settings (potential curves run energies only).
+    var energyRefusal: String? {
         guard isGeneral, let e = estimate else { return nil }
         if let r = e.refusal { return r }
         if e.estimate == nil, let message = e.error { return message }
         return nil
     }
 
-    var isLongCalculation: Bool { estimate?.estimate?.longCalculation ?? false }
+    /// The whole job is estimated to take longer than 30 s.
+    var isLongCalculation: Bool {
+        estimate?.job?.estimate.longCalculation ?? estimate?.estimate?.longCalculation ?? false
+    }
 
-    /// The displayed result was computed with the current molecule, basis set, method and geometry.
+    /// Estimated time of the whole job (seconds).
+    var estimatedSeconds: Double? {
+        estimate?.job?.estimate.totalSeconds ?? estimate?.estimate?.totalSeconds
+    }
+
+    /// The displayed result was computed with the current molecule, job, basis set, method and
+    /// starting geometry.
     var resultMatchesInputs: Bool {
         guard let input = result?.input, isGeneral, input.isGeneral else { return false }
         return input.molecule == molecule.rawValue && input.basis == basis && input.method == method.rawValue
+            && input.job == job.rawValue
             && abs(input.R - bondLength) < 1e-9 && (molecule != .h2o || abs(input.angle - waterAngle) < 1e-9)
     }
+
+    /// The single-point method and basis set of job 5 (the job's own when not chosen).
+    var effectiveSPMethod: MethodChoice { spMethod ?? method }
+    var effectiveSPBasis: String { spBasis ?? basis }
 
     // MARK: Results and the running job
 
     var selectedTab: DetailTab = .summary
+    var methodsPage: MethodsPage = .hartreeFock
+    var vibrationPage: VibrationPage = .frequencies
     var isRunning = false
     var result: MacQCOutput?
     var errorMessage: String?
     var progress = MacQCProgress()
+    /// The backend's description of the current step ("Optimisation step 4 · E = … · max force …").
+    var progressLine = ""
     var runStarted: Date?
     var showLongRunConfirmation = false
 
-    @ObservationIgnored private var job: MacQCJob?
+    /// The output file of the latest run (streamed while it runs; also after a cancelled or
+    /// failed run). `outputGeneration` changes when the text is replaced rather than extended.
+    var outputText = ""
+    var outputGeneration = 0
+
+    /// Starts the job at launch even when it is estimated to be long (launch argument
+    /// -psilabAutoRun YES, used by the UI smoke test).
+    var autoRunLongJobs = false
+
+    @ObservationIgnored private var runningJob: MacQCJob?
 
     // MARK: Potential curve
 
@@ -161,6 +225,40 @@ final class AppModel {
            let choice = MethodChoice(name: m) {
             method = choice
         }
+        // ΨLab 5.0: -psilabJob opt+freq -psilabSPMethod "CCSD(T)" -psilabSPBasis aug-cc-pVTZ
+        // -psilabR 1.0 (angstrom) -psilabAngle 110 -psilabTab output -psilabAutoRun YES
+        if let j = defaults.string(forKey: "psilabJob"), let choice = JobChoice(name: j) {
+            job = choice
+        }
+        if let m = defaults.string(forKey: "psilabSPMethod"), let choice = MethodChoice(name: m) {
+            spMethod = choice
+        }
+        if let b = defaults.string(forKey: "psilabSPBasis"),
+           let name = BasisSets.all.first(where: { $0.lowercased() == b.lowercased() }) {
+            spBasis = name
+        }
+        if defaults.object(forKey: "psilabR") != nil, molecule != .heh {
+            let r = defaults.double(forKey: "psilabR")
+            if r > 0 { bondLengths[molecule] = r / Units.bohrToAngstrom }
+        }
+        if defaults.object(forKey: "psilabAngle") != nil {
+            let a = defaults.double(forKey: "psilabAngle")
+            if a > 0 { waterAngle = a }
+        }
+        if let t = defaults.string(forKey: "psilabTab") {
+            switch t.lowercased() {
+            case "methods": selectedTab = .methods
+            case "optimisation", "optimization": selectedTab = .optimization
+            case "frequencies": selectedTab = .frequencies
+            case "thermochemistry":
+                selectedTab = .frequencies
+                vibrationPage = .thermochemistry
+            case "curve", "potential curve": selectedTab = .potentialCurve
+            case "output": selectedTab = .output
+            default: selectedTab = .summary
+            }
+        }
+        autoRunLongJobs = defaults.bool(forKey: "psilabAutoRun")
     }
 
     // MARK: Inputs
@@ -178,6 +276,15 @@ final class AppModel {
             input.threads = 0
             input.memoryMB = MachineLimits.integralMemoryMB
             input.fciMemoryMB = MachineLimits.fciMemoryMB
+            input.job = job.rawValue
+            if job.hasSinglePoint {
+                input.spMethod = spMethod?.rawValue ?? ""
+                input.spBasis = spBasis ?? ""
+            }
+            input.temperature = temperature
+            input.pressure = pressure
+            input.optConvergence = tightConvergence ? "tight" : "normal"
+            input.maxSteps = maxSteps
         } else {
             input.molecule = MoleculeChoice.heh.rawValue
             input.R = R
@@ -205,6 +312,29 @@ final class AppModel {
         if molecule == .h2o { waterAngle = MoleculeChoice.defaultWaterAngle }
     }
 
+    /// Bond length (bohr; H₂O the mean of both O–H distances) and angle of the optimised
+    /// geometry of the displayed result, if it is for the selected molecule and converged.
+    var optimizedGeometry: (R: Double, angle: Double?, symmetric: Bool)? {
+        guard isGeneral, let out = result, out.input.molecule == molecule.rawValue,
+              let opt = out.optimization, opt.converged, let r = opt.finalGeometry.R else { return nil }
+        return (r, opt.finalGeometry.angle, opt.symmetricEnd || out.input.molecule != "H2O")
+    }
+
+    /// The optimised geometry differs from the inputs (so copying it changes something).
+    var canUseOptimizedGeometry: Bool {
+        guard let g = optimizedGeometry else { return false }
+        if abs(g.R - bondLength) > 1e-9 { return true }
+        if let a = g.angle, abs(a - waterAngle) > 1e-9 { return true }
+        return false
+    }
+
+    /// Copies the optimised geometry into the geometry inputs (the start of the next job).
+    func useOptimizedGeometry() {
+        guard let g = optimizedGeometry else { return }
+        bondLengths[molecule] = g.R
+        if molecule == .h2o, let a = g.angle { waterAngle = a }
+    }
+
     // MARK: Estimate
 
     /// Asks the backend for the size, time and memory of the current input (no calculation).
@@ -230,7 +360,10 @@ final class AppModel {
 
     /// Text of the estimate for a confirmation dialog.
     var longRunMessage: String {
-        estimate?.warnings?.joined(separator: "\n") ?? "This calculation may take a long time."
+        if let j = estimate?.job, !j.estimate.warnings.isEmpty {
+            return j.estimate.warnings.joined(separator: "\n")
+        }
+        return estimate?.warnings?.joined(separator: "\n") ?? "This calculation may take a long time."
     }
 
     // MARK: Single calculation
@@ -251,26 +384,48 @@ final class AppModel {
         isRunning = true
         errorMessage = nil
         progress = MacQCProgress()
+        progressLine = ""
         runStarted = Date()
-        let job = MacQCJob()
-        self.job = job
-        // Poll the backend's progress while the calculation runs.
+        let input = currentInput(printLevel: 2)
+        if input.isGeneral {
+            outputText = ""
+            outputGeneration += 1
+        }
+        let handle = MacQCJob()
+        runningJob = handle
+        // Poll the backend's progress and the new part of the output file while the job runs.
         let poller = Task { [weak self] in
+            var offset = 0
             while !Task.isCancelled {
-                let p = job.progress()
-                self?.progress = p
+                let p = handle.progress()
+                let line = handle.progressText()
+                let piece = handle.output(from: offset)
+                offset = max(offset, piece.total)
+                guard let self else { return }
+                self.progress = p
+                self.progressLine = line
+                if !piece.text.isEmpty { self.outputText += piece.text }
                 try? await Task.sleep(for: .milliseconds(250))
             }
         }
         defer {
             poller.cancel()
             isRunning = false
-            self.job = nil
+            runningJob = nil
             runStarted = nil
+            progressLine = ""
         }
 
         do {
-            let output = try await MacQCEngine.run(currentInput(printLevel: 2), job: job)
+            let output = try await MacQCEngine.run(input, job: handle)
+            // The complete output file (also of a cancelled or failed job).
+            if input.isGeneral {
+                let full = output.output ?? handle.output(from: 0).text
+                if !full.isEmpty && full != outputText {
+                    outputText = full
+                    outputGeneration += 1
+                }
+            }
             if output.error == "calculation cancelled" {
                 errorMessage = "Calculation cancelled."   // keep the previous result visible
                 return
@@ -283,8 +438,13 @@ final class AppModel {
         }
     }
 
+    /// The progress line under the Run button.
+    var progressDescription: String {
+        progressLine.isEmpty ? progress.text : progressLine
+    }
+
     func cancelRun() {
-        job?.cancel()
+        runningJob?.cancel()
     }
 
     /// Elapsed time of the running calculation, e.g. "1:05".
@@ -324,8 +484,8 @@ final class AppModel {
     /// Run scan button: confirmation first when the scan would take more than 30 s.
     func requestScan() {
         guard !isScanning else { return }
-        if isGeneral && refusal != nil {
-            scanMessage = refusal
+        if isGeneral && energyRefusal != nil {
+            scanMessage = energyRefusal
             return
         }
         if isGeneral && scanSeconds > 30 {
@@ -358,7 +518,8 @@ final class AppModel {
         let grid = scanGrid()
         var points: [CurvePoint] = []
         var failures: [String] = []
-        let template = currentInput(printLevel: 0)
+        var template = currentInput(printLevel: 0)
+        template.job = "energy"   // a curve is a series of single-point energies, whatever the job
         let general = template.isGeneral
 
         for (index, r) in grid.enumerated() {
@@ -553,6 +714,30 @@ final class AppModel {
             lines.append("  correlation energy:   " + Fmt.energy10(c.totalCorrelation) + " E_h")
             lines.append(String(format: "  T1 diagnostic:        %.6f", c.t1Diagnostic))
         }
+        if let j = out.job, j.type != "energy" {
+            lines.append("")
+            lines.append("Job: \(j.title)")
+            if let label = j.finalEnergyLabel, let e = j.finalEnergy {
+                lines.append("  final energy (\(label)): " + Fmt.energy10(e) + " E_h")
+            }
+            if let opt = out.optimization {
+                lines.append("  optimisation:         \(opt.converged ? "converged" : "NOT converged") in \(opt.steps) steps")
+                for p in opt.finalParameters {
+                    lines.append("  " + Fmt.parameter(p))
+                }
+            }
+            if let f = out.frequencies {
+                let list = f.modes.map { Fmt.wavenumber($0) }.joined(separator: ", ")
+                lines.append("  harmonic wavenumbers: " + list + " cm-1 (" + (f.analytic ? "analytic Hessian" : "numerical Hessian") + ")")
+            }
+            if let t = out.thermochemistry {
+                lines.append(String(format: "  thermochemistry at %.2f K, %.0f Pa:", t.temperature, t.pressure))
+                lines.append("    ZPE " + String(format: "%.10f E_h", t.corrections.zeroPoint / Units.joulePerMolPerHartree))
+                lines.append("    E + ZPE " + Fmt.energy10(t.totals.zeroPoint) + " E_h, H " + Fmt.energy10(t.totals.enthalpy)
+                             + " E_h, G " + Fmt.energy10(t.totals.gibbs) + " E_h")
+                lines.append(String(format: "    S %.4f J/(mol K)", t.terms.total.entropy))
+            }
+        }
         for warning in out.warnings ?? [] {
             lines.append("Warning: \(warning)")
         }
@@ -570,9 +755,13 @@ final class AppModel {
         pasteboard.setString(text, forType: .string)
     }
 
-    /// Plain-text export: summary, the backend's full report and, if a scan was run, the
-    /// potential-curve table with its minima.
+    /// Plain-text export. H₂, LiH, H₂O: the output file of the job, exactly as in the Output
+    /// tab and in psilab's output file. HeH⁺: summary, the FORTRAN-style report and, if a scan
+    /// was run, the potential-curve table with its minima.
     func fullTextReport() -> String? {
+        if let out = result, out.isGeneral, let file = out.output, !file.isEmpty {
+            return file
+        }
         guard let out = result, let summary = summaryText() else { return nil }
         let rule = String(repeating: "=", count: 78)
         var parts: [String] = [summary]
@@ -621,7 +810,8 @@ final class AppModel {
     private func exportName(_ out: MacQCOutput) -> String {
         if out.isGeneral {
             let method = out.input.method
-            return String(format: "PsiLab-%@-%@-%@-R%.4f", out.input.molecule, method, out.input.basis, out.input.R)
+            let job = out.input.job == "energy" ? "" : "-" + out.input.job
+            return String(format: "PsiLab-%@-%@-%@%@-R%.4f", out.input.molecule, method, out.input.basis, job, out.input.R)
         }
         return String(format: "PsiLab-HeH+-STO%ldG-R%.4f", out.input.nGaussians, out.input.R)
     }
@@ -633,7 +823,7 @@ final class AppModel {
         panel.title = "Export Results as Text"
         panel.allowedContentTypes = [UTType.plainText]
         panel.canCreateDirectories = true
-        panel.nameFieldStringValue = exportName(out) + ".txt"
+        panel.nameFieldStringValue = exportName(out) + (out.isGeneral ? ".out" : ".txt")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             try text.write(to: url, atomically: true, encoding: .utf8)
@@ -668,5 +858,28 @@ final class AppModel {
         }
     }
 
-    var canExportOrCopy: Bool { result?.hf != nil || result?.rhf != nil }
+    var canExportOrCopy: Bool { result?.hf != nil || result?.rhf != nil || (result?.output?.isEmpty == false) }
+
+    /// File > Export Potential Curve as Text… (the scan table with its minima).
+    func exportCurve() {
+        guard let text = curveTableText() else { return }
+        let panel = NSSavePanel()
+        panel.title = "Export Potential Curve as Text"
+        panel.allowedContentTypes = [UTType.plainText]
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = "PsiLab-curve-\(molecule.rawValue).txt"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try (text + "\n").write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            errorMessage = "Could not write the file: \(error.localizedDescription)"
+        }
+    }
+
+    /// Selects a tab (and its page) from the View menu.
+    func show(_ tab: DetailTab, methods: MethodsPage? = nil, vibration: VibrationPage? = nil) {
+        if let m = methods { methodsPage = m }
+        if let v = vibration { vibrationPage = v }
+        selectedTab = tab
+    }
 }

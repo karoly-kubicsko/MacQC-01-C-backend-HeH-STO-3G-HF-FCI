@@ -1,0 +1,47 @@
+name: releases
+
+# Turns the app builds of the earlier versions (CI artifacts, deleted after 90 days) into
+# permanent GitHub Releases v1.0 ... v4.0. Runs when this file changes on main (once, after it
+# is merged) or by hand; releases that exist already are left alone. Newer versions are
+# published by the app workflow on every build of main.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/releases.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create the releases of the earlier versions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # version | app-workflow run with the last build of it | commit on main | what was new
+          while IFS='|' read -r VERSION RUN SHA SUMMARY; do
+            TAG="v$VERSION"
+            if gh release view "$TAG" > /dev/null 2>&1; then
+              echo "$TAG exists"
+              continue
+            fi
+            DIR="download-$VERSION"
+            gh run download "$RUN" --name "ΨLab-app" --dir "$DIR"
+            ASSET="PsiLab-$VERSION.app.zip"
+            mv "$DIR/ΨLab.app.zip" "$ASSET"
+            NOTES="ΨLab $VERSION: $SUMMARY Built by run $RUN from $SHA (macOS 14 and later, Apple Silicon and Intel). Unzip $ASSET; the app is not notarized: right-click ΨLab.app ▸ Open the first time, or run xattr -dr com.apple.quarantine ΨLab.app."
+            gh release create "$TAG" "$ASSET" --target "$SHA" --title "ΨLab $VERSION" --notes "$NOTES" --latest=false
+            echo "created $TAG"
+          done <<'TABLE'
+          1.0|43035989222|72c550877db4f52fad57b14ab5731a5e5c3c22ca|HeH+ in STO-1G/2G/3G: restricted Hartree-Fock (Szabo-Ostlund) and Full CI, potential curves.
+          2.0|43236328696|ed3f0d69367334fa1355b5bdc6973fd56dea4efb|terminal version psilab, bond lengths in angstrom and bohr, Export Results as Text, app icon and the name ΨLab.
+          3.0|43323100734|18e28035d188b57f2db6aa68889bf7e17ad9b3b2|H2, LiH and H2O in aug-cc-pVXZ and aug-cc-pCVXZ: restricted Hartree-Fock and Full CI.
+          4.0|43409354864|969db1158e590cd5a7edcce77658ce5b6b7cdc40|coupled cluster CCSD, CCSD(T), CCSDT and CCSDTQ; the method menu HF ... Full CI.
+          TABLE

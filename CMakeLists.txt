@@ -55,6 +55,24 @@ target_link_libraries(macqc PUBLIC Threads::Threads)
 # location for builds that are not installed; installed programs use <prefix>/share/psilab/basis.
 target_compile_definitions(macqc PRIVATE MACQC_BASIS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/basis")
 
+# macOS: matrix products through Apple's Accelerate (BLAS), as in the app; much faster than the
+# portable blocked GEMM (about 5 GFlop/s) for coupled cluster, Full CI and the integral
+# transformations. -DMACQC_USE_ACCELERATE=OFF keeps the portable GEMM (the Linux code path).
+if(APPLE)
+  option(MACQC_USE_ACCELERATE "Use Apple's Accelerate for matrix products" ON)
+  if(MACQC_USE_ACCELERATE)
+    find_library(ACCELERATE_FRAMEWORK Accelerate)
+    if(NOT ACCELERATE_FRAMEWORK)
+      message(FATAL_ERROR "Accelerate.framework not found; configure with -DMACQC_USE_ACCELERATE=OFF")
+    endif()
+    target_compile_definitions(macqc PRIVATE MACQC_USE_ACCELERATE=1)
+    target_link_libraries(macqc PUBLIC "${ACCELERATE_FRAMEWORK}")
+    message(STATUS "Matrix products: Apple Accelerate (${ACCELERATE_FRAMEWORK})")
+  else()
+    message(STATUS "Matrix products: portable blocked GEMM")
+  endif()
+endif()
+
 add_executable(macqc_cli backend/cli/main.cpp)
 target_link_libraries(macqc_cli PRIVATE macqc)
 set_target_properties(macqc_cli PROPERTIES OUTPUT_NAME macqc)

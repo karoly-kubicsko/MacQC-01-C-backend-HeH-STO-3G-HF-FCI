@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct ContentView: View {
     @Bindable var model: AppModel
@@ -19,6 +20,7 @@ struct ContentView: View {
             DetailView(model: model)
         }
         .navigationTitle("ΨLab")
+        .background(WindowFitter())
         .preferredColorScheme((AppearanceChoice(rawValue: appearanceRaw) ?? .system).colorScheme)
         .task {
             // Show a result right away (the Szabo–Ostlund defaults, or the molecule given as a
@@ -26,7 +28,7 @@ struct ContentView: View {
             if model.result == nil {
                 if model.isGeneral {
                     await model.refreshEstimate()
-                    if model.refusal == nil && !model.isLongCalculation {
+                    if model.refusal == nil && (!model.isLongCalculation || model.autoRunLongJobs) {
                         await model.run()
                     }
                 } else {
@@ -37,6 +39,39 @@ struct ContentView: View {
     }
 }
 
+/// Keeps the window on the screen: the default size (1180 × 760 pt) is larger than a 1024-pt
+/// screen, and a restored frame can lie partly outside it. When the window appears, its frame
+/// is clipped to the screen's visible area (the minimum width, 1000 pt, still fits).
+struct WindowFitter: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { WindowFitterView() }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+final class WindowFitterView: NSView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        fit()
+        // SwiftUI may still apply the default size after the view is attached.
+        Task { @MainActor [weak self] in self?.fit() }
+    }
+
+    private func fit() {
+        guard let window, let screen = window.screen ?? NSScreen.main else { return }
+        let visible = screen.visibleFrame
+        var frame = window.frame
+        frame.size.width = min(frame.width, visible.width)
+        frame.size.height = min(frame.height, visible.height)
+        frame.origin.x = min(max(frame.minX, visible.minX), visible.maxX - frame.width)
+        frame.origin.y = min(max(frame.minY, visible.minY), visible.maxY - frame.height)
+        if frame != window.frame {
+            window.setFrame(frame, display: true)
+        }
+    }
+}
+
+/// Six tabs (they fit next to the sidebar at the minimum window width of 1000 pt): Summary,
+/// Methods (Hartree–Fock, coupled cluster, Full CI), Optimisation, Frequencies (with the
+/// thermochemistry page), Potential curve, Output.
 struct DetailView: View {
     @Bindable var model: AppModel
 
@@ -46,26 +81,25 @@ struct DetailView: View {
                 .tabItem { Label("Summary", systemImage: "list.bullet.rectangle") }
                 .tag(DetailTab.summary)
 
-            HartreeFockView(model: model)
-                .tabItem { Label("Hartree–Fock", systemImage: "square.grid.2x2") }
-                .tag(DetailTab.hartreeFock)
+            MethodsView(model: model)
+                .tabItem { Label("Methods", systemImage: "square.grid.2x2") }
+                .tag(DetailTab.methods)
 
-            CoupledClusterView(model: model)
-                // Short label: six tabs must fit next to the sidebar at the minimum window width.
-                .tabItem { Label("CC", systemImage: "point.3.connected.trianglepath.dotted") }
-                .tag(DetailTab.coupledCluster)
+            OptimizationView(model: model)
+                .tabItem { Label("Optimisation", systemImage: "arrow.down.right.and.arrow.up.left") }
+                .tag(DetailTab.optimization)
 
-            FullCIView(model: model)
-                .tabItem { Label("Full CI", systemImage: "function") }
-                .tag(DetailTab.fullCI)
+            FrequenciesView(model: model)
+                .tabItem { Label("Frequencies", systemImage: "waveform.path") }
+                .tag(DetailTab.frequencies)
 
             PotentialCurveView(model: model)
-                .tabItem { Label("Potential curve", systemImage: "chart.xyaxis.line") }
+                .tabItem { Label("Curve", systemImage: "chart.xyaxis.line") }
                 .tag(DetailTab.potentialCurve)
 
-            ReportView(model: model)
-                .tabItem { Label("Report", systemImage: "doc.plaintext") }
-                .tag(DetailTab.report)
+            OutputView(model: model)
+                .tabItem { Label("Output", systemImage: "doc.plaintext") }
+                .tag(DetailTab.output)
         }
         .padding(.top, 4)
     }
@@ -149,15 +183,15 @@ struct NoResultView: View {
             if model.isGeneral, let refusal = model.refusal {
                 StatusBanner(kind: .refusal, text: refusal)
                     .frame(maxWidth: 560)
-            } else if model.isGeneral && model.isLongCalculation, let warning = model.estimate?.warnings?.first {
-                StatusBanner(kind: .warning, text: warning + " Run asks for confirmation; a running calculation can be cancelled.")
+            } else if model.isGeneral && model.isLongCalculation {
+                StatusBanner(kind: .warning, text: model.longRunMessage + " Run asks for confirmation; a running calculation can be cancelled.")
                     .frame(maxWidth: 560)
             }
             ContentUnavailableView(
                 "No results yet",
                 systemImage: "atom",
                 description: Text(model.isGeneral
-                                  ? "Choose the basis set and method in the sidebar and press Run."
+                                  ? "Choose the job, method and basis set in the sidebar and press Run."
                                   : "Press Run to start a Hartree–Fock and Full CI calculation.")
             )
         }

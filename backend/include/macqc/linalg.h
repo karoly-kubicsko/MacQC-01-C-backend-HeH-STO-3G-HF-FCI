@@ -68,6 +68,9 @@ EigenResult symmetric_eigen(const Matrix& symmetric);
 //   C = alpha * op(A) * op(B) + beta * C,  op(X) = X or X^T,
 // with op(A) m x k, op(B) k x n, C m x n and leading dimensions lda, ldb, ldc.
 // Cache-blocked with packed panels; `threads` > 1 splits the rows of C.
+// "Apple Accelerate (BLAS)" or "portable blocked GEMM": how gemm() multiplies (for the output file).
+const char* gemm_backend_name();
+
 void gemm(bool trans_a, bool trans_b, std::size_t m, std::size_t n, std::size_t k, double alpha, const double* a,
           std::size_t lda, const double* b, std::size_t ldb, double beta, double* c, std::size_t ldc,
           int threads = 1);

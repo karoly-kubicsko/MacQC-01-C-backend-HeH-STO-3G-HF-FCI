@@ -2,7 +2,7 @@
 //  Molecules.swift
 //  MacQC
 //
-//  The molecules, methods and basis sets offered in the sidebar (ΨLab 4.0).
+//  The molecules, job types, methods and basis sets offered in the sidebar (ΨLab 5.0).
 //
 
 import Foundation
@@ -133,6 +133,71 @@ nonisolated enum MethodChoice: String, CaseIterable, Identifiable, Sendable {
     /// Title of a backend method name ("RHF" -> "HF").
     static func title(of backendName: String) -> String {
         MethodChoice(rawValue: backendName)?.title ?? backendName
+    }
+}
+
+/// Job types of ΨLab 5.0 (H₂, LiH, H₂O), in the order of the job menu. The raw value is the
+/// backend's job name.
+nonisolated enum JobChoice: String, CaseIterable, Identifiable, Sendable {
+    case energy = "energy"
+    case opt = "opt"
+    case freq = "freq"
+    case optFreq = "opt+freq"
+    case optFreqSP = "opt+freq+sp"
+
+    var id: String { rawValue }
+
+    /// Full name (job menu, output file).
+    var title: String {
+        switch self {
+        case .energy: return "Energy"
+        case .opt: return "Geometry optimisation"
+        case .freq: return "Frequencies"
+        case .optFreq: return "Optimisation + frequencies"
+        case .optFreqSP: return "Optimisation + frequencies + single-point energy"
+        }
+    }
+
+    /// Short name for the closed menu in the sidebar and for the result headers.
+    var shortTitle: String {
+        switch self {
+        case .energy: return "Energy"
+        case .opt: return "Optimisation"
+        case .freq: return "Frequencies"
+        case .optFreq: return "Opt + freq"
+        case .optFreqSP: return "Opt + freq + SP"
+        }
+    }
+
+    var number: Int { (JobChoice.allCases.firstIndex(of: self) ?? 0) + 1 }
+
+    var hasOptimization: Bool { self == .opt || self == .optFreq || self == .optFreqSP }
+    var hasFrequencies: Bool { self == .freq || self == .optFreq || self == .optFreqSP }
+    var hasSinglePoint: Bool { self == .optFreqSP }
+
+    /// One-line description under the job menu.
+    var explanation: String {
+        switch self {
+        case .energy:
+            return "Single-point energy at the input geometry."
+        case .opt:
+            return "Minimum-energy geometry from the input geometry (redundant internal coordinates, RFO steps, BFGS)."
+        case .freq:
+            return "Harmonic frequencies, IR intensities and thermochemistry at the input geometry (a warning if it is not a stationary point)."
+        case .optFreq:
+            return "Optimisation, then frequencies and thermochemistry at the optimised geometry."
+        case .optFreqSP:
+            return "Optimisation and frequencies, then a single-point energy with its own method and basis set; the final energies add the thermal corrections."
+        }
+    }
+
+    /// Accepts the raw value, the title or the number (launch arguments), in any case.
+    init?(name: String) {
+        let n = name.lowercased()
+        guard let j = JobChoice.allCases.first(where: {
+            $0.rawValue == n || $0.title.lowercased() == n || "\($0.number)" == n
+        }) else { return nil }
+        self = j
     }
 }
 
