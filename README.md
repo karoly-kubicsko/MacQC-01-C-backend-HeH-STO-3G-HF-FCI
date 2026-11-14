@@ -158,7 +158,21 @@ method   = RHF               # HF (RHF), CCSD, CCSD(T), CCSDT, CCSDTQ, or FCI (H
 threads  = 0                 # 0: all processor cores
 memory   = 1024 MB           # two-electron integrals are kept in memory up to this size
 fci_memory = 4 GB            # memory limit of Full CI and coupled cluster
+job      = energy            # energy | opt | freq | opt+freq | opt+freq+sp (version 5.0)
+sp_method = CCSD(T)          # opt+freq+sp: method of the final single point (default: method)
+sp_basis = aug-cc-pVTZ       # opt+freq+sp: its basis set (default: basis)
+temperature = 298.15 K       # frequency jobs: thermochemistry temperature
+pressure = 101325 Pa         # and pressure (Pa, kPa, MPa, bar, atm or Torr)
+opt_convergence = normal     # normal | tight (optimisation criteria, see below)
+max_steps = 50               # optimisation steps
 ```
+
+The job keys and the output file are described under
+[Job types and the output file](#job-types-and-the-output-file-version-50). For H₂, LiH and H₂O
+`psilab` writes the output file while the job runs and flushes it after every line block, so
+`tail -f water.out` follows SCF, coupled-cluster, Lambda, CPHF and optimisation iterations as they
+happen; the terminal shows the final numbers (optimised energy and number of steps, wavenumbers,
+G, H and ZPE, the final energy) when the job ends.
 
 `psilab --estimate input.inp` prints the size of the calculation (basis functions, two-electron
 integrals, memory) and a rough time estimate without computing; a calculation estimated to take
@@ -167,11 +181,12 @@ explanation (for example LiH in aug-cc-pCV5Z, which is not defined for Li, or Fu
 which would need 5.6·10¹¹ determinants already in aug-cc-pVDZ). The basis-set files are
 found in `basis_dir` (input key), `$PSILAB_BASIS_DIR`, the installed copy
 (`<prefix>/share/psilab/basis`, put there by `cmake --install`) or the source tree.
-The output file contains the same text as the app's *File ▸ Export Results as Text*: the summary,
-the full Hartree–Fock and Full CI report and, with `scan = yes`, the potential-curve table (R in
-bohr and Å) with the HF and FCI minima. Mistakes in the input are reported with their line number;
-the exit status is 0 on success, 1 if the calculation failed (e.g. no SCF convergence) and 2 for
-input or file errors.
+The output file contains the same text as the app's *File ▸ Export Results as Text*: for HeH⁺ the
+summary, the full Hartree–Fock and Full CI report and, with `scan = yes`, the potential-curve table
+(R in bohr and Å) with the HF and FCI minima; for H₂, LiH and H₂O the output file of the job
+(version 5.0, see below). Mistakes in the input are reported with their line number;
+the exit status is 0 on success, 1 if the calculation failed (e.g. no SCF convergence, an
+optimisation that did not converge or a refused job) and 2 for input or file errors.
 
 ## The C++ backend
 
@@ -596,6 +611,100 @@ Verification (`backend/tests/test_frequencies.cpp`; `reference/pyscf_frequency_r
 - At linear H₂O the degenerate bend is imaginary (twice) and left out of the thermochemistry with
   two warnings.
 
+### Job types and the output file (version 5.0)
+
+`jobs.cpp`, `output.cpp`. Five job types for H₂, LiH and H₂O (HeH⁺ keeps its 4.0 energy path):
+
+| Job | What runs | Geometry of each step |
+|---|---|---|
+| 1 `energy` | single-point energy, as in 4.0 | input |
+| 2 `opt` | geometry optimisation | input → optimised |
+| 3 `freq` | Hessian, normal modes, IR intensities, thermochemistry; a warning if the input geometry is not stationary (largest gradient component above 4.5e-4 Eₕ/bohr) | input |
+| 4 `opt+freq` | optimisation, then frequencies | frequencies at the optimised geometry |
+| 5 `opt+freq+sp` | optimisation and frequencies with `method`/`basis`, then a single-point energy with `sp_method`/`sp_basis`; final U, H, G, A = single-point energy + thermal corrections of step 2 | optimised |
+
+If the optimisation of job 4 or 5 does not converge within `max_steps`, the job stops after it
+with an error termination that says why ("the frequency and single-point steps were not run:
+they need a stationary point"). Every method can be used where its energy is possible: analytic
+gradients for RHF, CCSD, CCSD(T) and Full CI; numerical gradients (central differences of
+energies along internal coordinates) for CCSDT and CCSDTQ; analytic RHF Hessians; numerical
+Hessians from analytic gradients (CCSD, CCSD(T), Full CI) or from energies (CCSDT, CCSDTQ). The
+estimate lists each step with how it is computed, the number of energies, gradients or steps,
+the time and the memory; jobs that would take more than three days are refused, and so are
+CCSDTQ optimisations and frequencies of H₂O (no analytic CCSDTQ gradient: each step would need
+CCSDTQ energies of hours each and more than 5 GB; the CCSDTQ energy itself remains possible with
+enough memory, also as the single point of job 5). A job whose single point is impossible is
+refused before anything runs.
+
+The **output file** is written while the job runs and is identical in the app's *Output* view, in
+*File ▸ Export Results as Text* and in `psilab`'s output file. In order:
+
+1. header: program and version, start time, job type, threads; the input (keys as understood, for
+   `psilab` also the input file as given);
+2. molecule: electrons, charge, Cartesian coordinates in Å and bohr, bond lengths and angle,
+   nuclear repulsion; basis set per element (primitives → contraction, functions), number of
+   functions and shells, storage of the two-electron integrals;
+3. estimates: size of Full CI or coupled cluster, each step of the job, total time, warnings or the
+   refusal;
+4. every energy calculation as it happens: SCF iterations (energy, change, orbital gradient,
+   DIIS); CC iterations (energy, correlation energy, change, largest amplitude change) or Davidson
+   iterations; Lambda iterations; CPHF / Z-vector iterations;
+5. at the energy job's geometry or the optimised geometry: energy components (kinetic, nuclear
+   attraction, electron repulsion, virial ratio), all orbital energies with HOMO, LUMO and gap,
+   Mulliken and Löwdin charges, dipole moment (SCF density; relaxed density for correlated
+   gradients), the coupled-cluster or Full CI report (T1 diagnostic, leading amplitudes or
+   determinants, natural occupations);
+6. optimisation, every step: the Cartesian geometry it uses, the energy and its change, the
+   Cartesian gradient and how it was computed, the table of internal coordinates (name,
+   definition, value in bohr/rad and Å/deg, force, step), the Hessian (initial or update), the
+   RFO step (λ, length, trust radius, predicted change, ratio of actual to predicted change), and
+   the convergence table (item, value, threshold, converged?); then "Stationary point found", a
+   step summary, the optimised geometry and parameters (start in parentheses) and whether H₂O kept
+   C₂ᵥ;
+7. frequencies: the geometry used, how the Hessian and the dipole derivatives were obtained (and
+   each displaced calculation of a numerical Hessian), isotopes and masses, the residual curvature
+   of translations and rotations, the table of modes (symmetry, wavenumber, reduced mass, force
+   constant, IR intensity) and the normalised Cartesian displacements;
+8. thermochemistry: T, p, mass, symmetry number, moments of inertia, rotational constants and
+   temperatures, vibrational temperatures; ZPE and the thermal corrections to U, H, A, G in Eₕ,
+   kcal/mol and kJ/mol; E + ZPE, U, H, A, G; E, C_V and S of the electronic, translational,
+   rotational and vibrational parts in kcal/mol, cal/(mol K) and J/(mol K), with partition
+   functions;
+9. single point of job 5 with its own SCF and correlated iterations;
+10. summary (final geometry, final energy and its label, convergence, wavenumbers, thermochemistry)
+    and "Normal termination" with the total time, or "Error termination" with the reason
+    (refusal, non-converged optimisation, failed SCF) or "Calculation cancelled".
+
+Warnings (non-stationary geometry, removed near-linear dependencies, imaginary frequencies left out
+of the thermochemistry, rises of the energy during the optimisation) appear where they occur and
+again in the summary.
+
+Verification (`backend/tests/test_jobs.cpp`, `backend/tests/test_psilab.cpp`):
+
+- every job type with RHF for H₂ (aug-cc-pVTZ), LiH and H₂O (aug-cc-pVDZ), tight convergence,
+  through the C API: optimised bond lengths and angle against PySCF + geomeTRIC within
+  2e-5 Å and 2e-3°, energies within 1e-9 Eₕ; frequencies against PySCF's analytic Hessian at the
+  same geometry within 0.01 cm⁻¹, at ΨLab's own optimised geometry within 0.05 cm⁻¹; ZPE, S and G
+  against PySCF's `thermo`;
+- job 5 (H₂O, RHF/aug-cc-pVDZ geometry and frequencies, CCSD(T)/aug-cc-pVTZ single point): the
+  single point equals an energy job at the optimised geometry (8e-10 Eₕ; the energy job converges
+  the amplitudes to 1e-8, the job to 1e-9), and E + ZPE,
+  U, H, G, A equal the single-point energy plus the thermal corrections (1e-10 Eₕ);
+- correlated methods (aug-cc-pVDZ): `opt+freq` with CCSD, CCSD(T), CCSDT, CCSDTQ and Full CI for
+  H₂, where CCSD = CCSDT = CCSDTQ = Full CI exactly (two electrons): R_e, the wavenumber and the
+  energy agree (analytic CCSD against analytic Full CI within 1e-6 Å and 0.05 cm⁻¹; numerical
+  CCSDT and CCSDTQ within 5e-5 Å and 0.5 cm⁻¹); LiH `opt+freq` with CCSD, CCSD(T) and Full CI (in the
+  *full* CI job also CCSDT and CCSDTQ, about 90 s per energy, with CCSDTQ = Full CI for four
+  electrons); LiH CCSD(T) and Full CI and H₂O
+  CCSD and CCSD(T) geometries against PySCF + geomeTRIC;
+- refusals (CCSDTQ frequencies and optimisation of H₂O, Full CI of H₂O, an impossible single
+  point in job 5), the counts of the numerical Hessians in the estimates (H₂O CCSDT: 9 energies +
+  10 finite-field energies; CCSD(T): 6 gradients; diatomics: 2);
+- the streamed output: read with `macqc_job_output` while the job runs, it is identical to the
+  final `output`; progress text; cancellation during an optimisation step (the run returns
+  "calculation cancelled" and the output says so);
+- `psilab`: all new keys and their errors, the streamed text equals the output file.
+
 ### Layout
 
 ```
@@ -673,11 +782,22 @@ void  macqc_job_progress(const macqc_job* job, int* stage, int* iteration,
                          double* energy, double* residual);
       // stage 0 idle, 1 integrals, 2 SCF, 3 integral transformation, 4 Full CI, 5 done,
       // 6 coupled-cluster iterations (residual = largest amplitude change), 7 (T) correction
-      // (iteration = percent done)
+      // (iteration = percent done); 5.0: 8 gradient, 9 Hessian, 10 CPHF, 11 Lambda equations,
+      // 12 geometry optimisation, 13 numerical Hessian
+char* macqc_job_output(const macqc_job* job, long long offset, long long* total);
+      // 5.0: the output file written so far, from byte `offset` on (free with macqc_free);
+      // *total = its full length, so a reader polls with offset = the previous total
+char* macqc_job_progress_text(const macqc_job* job);
+      // 5.0: one line about the current step (free with macqc_free), e.g.
+      // "Optimisation step 4 · E = -76.0418435426 E_h · max force 1.10e-04",
+      // "Hessian: displacement 3 of 6 (S2 -)", "Orbital response iteration 7 · residual 3.1e-06"
 void  macqc_job_free(macqc_job* job);      // after macqc_run_job has returned
 ```
 
 The app polls `macqc_job_progress` four times a second for the progress line of the sidebar.
+The output buffer of a job is a string guarded by a mutex inside the job handle: the calculation
+appends each piece of the output file as it is produced and `macqc_job_output` copies the part a
+reader has not seen yet, so the app's *Output* view follows the job without blocking it.
 
 #### Input JSON
 
@@ -708,6 +828,20 @@ memory limit of Full CI and coupled cluster;
 `"estimateOnly":true` only the molecule, the basis set, the size and time estimate, the warnings
 and (for a Full CI or coupled-cluster calculation that is not possible) the refusal are
 returned, without an error.
+
+Version 5.0 adds the job keys (H₂, LiH, H₂O; HeH⁺ only runs the energy job):
+
+```json
+{"job":"opt+freq+sp","spMethod":"CCSD(T)","spBasis":"aug-cc-pVTZ",
+ "temperature":298.15,"pressure":101325,"optConvergence":"normal","maxSteps":50}
+```
+
+`job` is `"energy"` (default), `"opt"`, `"freq"`, `"opt+freq"` or `"opt+freq+sp"` (other
+spellings such as `"OPT FREQ"` or `"5"` are accepted); `spMethod`/`spBasis` default to `method`
+and `basis`; `temperature` in K (0 < T ≤ 10⁵), `pressure` in Pa; `optConvergence` `"normal"` or
+`"tight"`; `maxSteps` 1–1000. With `"estimateOnly":true` the result's `job.estimate` lists the
+steps of the job (how each is computed, how many energies, gradients or steps, time, memory) and
+the refusal, if any.
 
 #### Output JSON
 
@@ -783,6 +917,51 @@ A refused calculation (e.g. LiH/aug-cc-pCV5Z, Full CI for H₂O, CCSDTQ for H₂
 reason is also in `refusal`. `correlationEnergy` and `ccEnergy` exclude (T); `totalEnergy`
 includes it.
 
+Version 5.0 adds, for H₂, LiH and H₂O (`null` where the job has no such step):
+
+```text
+  "job": {"type","title","termination":"normal"|"error"|"refused"|"estimate",
+          "completed","message","seconds","warnings",
+          "estimate": {"steps":[{"name","method","basis","how","analytic","evaluations",
+                                 "evaluationKind":"steps"|"gradients"|"energies"|"Hessians",
+                                 "seconds","memoryMB"}],
+                       "totalSeconds","memoryMB","longCalculation","refusal","warnings","notes"},
+          "initialGeometry","finalGeometry",           // {"atoms","R","R1","R2","angle"}, bohr, deg
+          "finalEnergy","finalEnergyLabel",            // e.g. -76.33, "CCSD(T)/aug-cc-pVTZ"
+          "singlePointMethod","singlePointBasis"},
+  "optimization": {"converged","steps","message","initialHessian","gradient",
+          "criteria":{"maxForce","rmsForce","maxDisplacement","rmsDisplacement","energy"},
+          "initialEnergy","finalEnergy","initialGeometry","finalGeometry",
+          "initialParameters","finalParameters":[{"name","value","angle"}],   // bohr or degrees
+          "symmetricStart","symmetricEnd","symmetryDeviation","seconds",
+          "history":[{"step","energy","deltaE","geometry",
+                      "coordinates":[{"name","definition","value","gradient","step"}],
+                      "convergence":[{"name","value","threshold","met","applicable"}],
+                      "converged","hessianUpdate","trustRadius","stepNorm","stepScaled",
+                      "predictedChange","ratio","warnings","seconds"}]},
+  "frequencies": {"analytic","description","numericalReason","gradientEvaluations",
+          "energyEvaluations","coordinates","intensities","intensityDescription","dipole",
+          "linear","vibrations","masses","isotopes","geometry","energy","lowFrequencies",
+          "modes":[{"wavenumber","imaginary","symmetry","reducedMass","forceConstant",
+                    "irIntensity","displacement":[[x,y,z] per atom]}],"seconds"},
+  "thermochemistry": {"temperature","pressure","symmetryNumber","linear","mass","moments",
+          "rotationalConstantsGHz","rotationalConstantsCm","rotationalTemperatures",
+          "vibrationalTemperatures","excludedModes","warnings",
+          "terms":{"translation"|"rotation"|"vibration"|"electronic"|"total":
+                   {"energy","entropy","cv","q"}},                 // J/mol, J/(mol K)
+          "zeroPointEnergy","corrections":{"zeroPoint","thermalEnergy","enthalpy","gibbs",
+          "helmholtz"},                                             // J/mol
+          "electronicEnergy","totals":{...same keys...}},           // E_h
+  "singlePoint": {"method","energy","converged","rhfEnergy","correlationEnergy","geometry",
+          "warnings","seconds"},
+  "output": "the complete output file"
+```
+
+`molecule`, `basis`, `rhf`, `fullCI`, `coupledCluster` and `report` then describe the final
+energy calculation of the job (the optimised geometry; for `opt+freq+sp` the single point). In
+`thermochemistry.totals` the energy is the job's final energy (for `opt+freq+sp` the single point)
+plus the thermal corrections of the frequency step.
+
 ### Adding to Xcode
 
 How the backend is wired into the ΨLab Xcode target (the full step-by-step guide for the app is
@@ -797,7 +976,7 @@ How the backend is wired into the ΨLab Xcode target (the full step-by-step guid
    `mo_integrals.cpp`, `ci.cpp`, `cc_general.cpp`, `cc_closed_shell.cpp`, `cc_estimate.cpp`,
    `gto_derivatives.cpp`, `rhf_derivatives.cpp`, `tensor.cpp`, `correlated_gradient.cpp`,
    `cc_gradient.cpp`, `gradient.cpp`, `internal_coordinates.cpp`, `optimizer.cpp`, `constants.cpp`,
-   `frequencies.cpp`, `hessian.cpp`, `job.cpp`,
+   `frequencies.cpp`, `hessian.cpp`, `output.cpp`, `jobs.cpp`, `job.cpp`,
    `calculation.cpp`, `api.cpp`; add the folder `basis/`
    as a folder reference to *Copy Bundle Resources* (the app passes its path as `basisDirectory`). Do **not** add `backend/cli/main.cpp` or anything in
    `backend/tests/` (they have their own `main`). Headers (`backend/include/macqc/*.h` and

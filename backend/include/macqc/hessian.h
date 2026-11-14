@@ -30,6 +30,9 @@ struct HessianOptions {
     bool dipoles = true;        // IR intensities
     bool force_numerical = false;
     bool from_energies = false;  // numerical from energies even where analytic gradients exist (tests)
+    // Energy and gradient already computed at this geometry (e.g. the last optimisation step),
+    // used instead of computing them again; nullptr: computed here.
+    const GradientResult* reference = nullptr;
 };
 
 struct HessianResult {

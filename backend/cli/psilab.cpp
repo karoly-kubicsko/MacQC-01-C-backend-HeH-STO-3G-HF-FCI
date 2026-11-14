@@ -1,5 +1,6 @@
 // ΨLab for the terminal (Linux, macOS): reads a plain-text input file, writes a
 // plain-text output file.  Usage: psilab INPUT [OUTPUT]   (see psilab --help)
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -41,7 +42,15 @@ void usage(const char* prog) {
                  "  method = HF | CCSD | CCSD(T) | CCSDT | CCSDTQ | FCI   (all electrons correlated)\n"
                  "  memory = <MB> (two-electron integrals kept in memory up to this size)\n"
                  "  fci_memory = <MB> (memory limit of Full CI and coupled cluster, default 4096)\n"
-                 "  basis_dir = <folder with the .gbs files> (or environment variable PSILAB_BASIS_DIR)\n",
+                 "  basis_dir = <folder with the .gbs files> (or environment variable PSILAB_BASIS_DIR)\n"
+                 "  job = energy | opt | freq | opt+freq | opt+freq+sp         (default energy)\n"
+                 "        opt: geometry optimisation (redundant internal coordinates, RFO, BFGS)\n"
+                 "        freq: harmonic frequencies, IR intensities and thermochemistry\n"
+                 "        opt+freq+sp: then a single-point energy with sp_method / sp_basis\n"
+                 "  sp_method = <method>   sp_basis = <basis>    (opt+freq+sp; default: method, basis)\n"
+                 "  temperature = <K> (298.15)   pressure = <number> [Pa | kPa | bar | atm] (101325 Pa)\n"
+                 "  opt_convergence = normal | tight   max_steps = <n> (50)\n\n"
+                 "The output file is written while the job runs (tail -f OUTPUT follows it).\n",
                  prog, prog, prog, prog, prog);
 }
 
@@ -144,15 +153,33 @@ int main(int argc, char** argv) {
     if (status) return status;
     for (const auto& w : psilab::estimate_warnings(settings)) std::fprintf(stderr, "warning: %s\n", w.c_str());
 
-    const psilab::RunResult result = psilab::run_to_text(settings);
+    // The output file is opened at the first piece of output and flushed after every piece, so
+    // `tail -f` follows the job (H2, LiH, H2O); HeH+ writes it at the end.
+    const std::string outputPath = argc == 3 ? argv[2] : default_output_name(inputPath);
+    std::ofstream out;
+    bool write_failed = false;
+    auto sink = [&](const std::string& text) {
+        if (write_failed) return;
+        if (!out.is_open()) {
+            out.open(outputPath, std::ios::binary | std::ios::trunc);
+            if (!out) {
+                write_failed = true;
+                std::fprintf(stderr, "error: cannot write %s\n", outputPath.c_str());
+                return;
+            }
+        }
+        out << text;
+        out.flush();
+        if (!out) write_failed = true;
+    };
+    const bool streamed = !macqc::is_heh_input(settings.input);
+    const psilab::RunResult result = psilab::run_to_text(settings, streamed ? macqc::OutputSink(sink) : macqc::OutputSink());
     if (result.text.empty()) {
         std::fprintf(stderr, "error: %s\n", result.error.c_str());
         return 1;
     }
-
-    const std::string outputPath = argc == 3 ? argv[2] : default_output_name(inputPath);
-    std::ofstream out(outputPath, std::ios::binary);
-    if (!out || !(out << result.text)) {
+    if (!streamed) sink(result.text);
+    if (write_failed) {
         std::fprintf(stderr, "error: cannot write %s\n", outputPath.c_str());
         return 2;
     }
@@ -160,15 +187,33 @@ int main(int argc, char** argv) {
 
     const auto& o = *result.output;
     std::printf("Wrote %s\n", outputPath.c_str());
-    if (o.molecular && o.molecular->rhf) {
+    if (o.job && o.input.job != "energy") {
+        const auto& j = *o.job;
+        if (j.optimization)
+            std::printf("  optimisation: %s in %d steps, E = %.10f E_h\n",
+                        j.optimization->converged ? "converged" : "NOT converged", j.optimization->steps,
+                        j.optimization->final_energy);
+        if (j.harmonic) {
+            std::printf("  frequencies (cm^-1):");
+            for (const auto& m : j.harmonic->modes) std::printf(" %.2f%s", std::fabs(m.wavenumber), m.imaginary ? "i" : "");
+            std::printf("\n");
+        }
+        if (j.thermo)
+            std::printf("  G(%.2f K) = %.10f E_h, H = %.10f E_h, ZPE = %.10f E_h\n", j.thermo->temperature,
+                        j.thermo->total_g, j.thermo->total_h, j.thermo->total_zpe - j.thermo->electronic_energy);
+        if (!j.final_energy_label.empty())
+            std::printf("  final energy %s: %.10f E_h\n", j.final_energy_label.c_str(), j.final_energy);
+    } else if (o.molecular && o.molecular->rhf) {
         std::printf("  RHF total energy: %.10f E_h\n", o.molecular->rhf->total_energy);
+        if (o.molecular->cc) std::printf("  %s total energy: %.10f E_h\n", o.molecular->cc->method.c_str(), o.molecular->cc->total_energy);
         if (o.molecular->fci) std::printf("  FCI total energy: %.10f E_h\n", o.molecular->fci->total_energy);
-    } else {
+    } else if (o.hf) {
         std::printf("  HF  total energy: %.8f E_h\n", o.hf->total_energy);
         if (o.fci) std::printf("  FCI total energy: %.8f E_h\n", o.fci->total_energy);
     }
     if (!result.error.empty()) {
-        std::fprintf(stderr, "warning: %s\n", result.error.c_str());
+        const bool failed = o.job && o.job->termination != "normal";
+        std::fprintf(stderr, "%s: %s\n", failed ? "error" : "warning", result.error.c_str());
         return 1;
     }
     return 0;

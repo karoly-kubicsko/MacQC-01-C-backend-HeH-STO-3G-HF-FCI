@@ -105,36 +105,82 @@ int main() {
     CHECK(rejects("molecule = H2\nthreads = 1.5\n", "threads must be an integer"));
     CHECK(rejects("molecule = H2\nmemory = 3 TB\n", "memory unit"));
 
-    const psilab::RunResult h2 = psilab::run_to_text(psilab::parse_input_text("molecule = H2\nbasis = aug-cc-pVDZ\n"));
+    // H2, LiH, H2O: the output file of ΨLab 5.0 (the same text the app exports), streamed.
+    std::string streamed;
+    int pieces = 0;
+    const psilab::RunResult h2 = psilab::run_to_text(psilab::parse_input_text("molecule = H2\nbasis = aug-cc-pVDZ\n"),
+                                                     [&](const std::string& t) {
+                                                         streamed += t;
+                                                         ++pieces;
+                                                     });
     CHECK(h2.error.empty());
-    CHECK(contains(h2.text, "\xCE\xA8Lab \xE2\x80\x93 H2, RHF/aug-cc-pVDZ"));
-    CHECK(contains(h2.text, "total energy:         -1.1287937367 E_h"));
-    CHECK(contains(h2.text, "18 basis functions (H [3s2p])"));
-    CHECK(contains(h2.text, "DETAILED REPORT"));
+    CHECK(streamed == h2.text && pieces > 10);
+    CHECK(contains(h2.text, "\xCE\xA8Lab 5.0"));
+    CHECK(contains(h2.text, "Job          Energy (energy)"));
+    CHECK(contains(h2.text, "    | molecule = H2"));  // the input file as given
+    CHECK(contains(h2.text, "Hartree-Fock (RHF) total energy:  -1.1287937367 E_h"));
+    CHECK(contains(h2.text, "total energy (RHF)               -1.1287937367"));
+    CHECK(contains(h2.text, "18 basis functions"));
+    CHECK(contains(h2.text, "H   aug-cc-pVDZ   (5s2p)           -> [3s2p]"));
+    CHECK(contains(h2.text, "Normal termination of \xCE\xA8Lab 5.0"));
     CHECK(contains(psilab::estimate_text(psilab::parse_input_text("molecule = H2O\nbasis = aug-cc-pCVDZ\n")),
                    "aug-cc-pCVDZ is not defined for H"));
-    // Full CI: H2 runs, H2O is refused with an explanation.
+    // Full CI: H2 runs, H2O is refused with an explanation (in the output file and the error).
     const psilab::RunResult h2fci =
         psilab::run_to_text(psilab::parse_input_text("molecule = H2\nbasis = aug-cc-pVDZ\nmethod = FCI\n"));
     CHECK(h2fci.error.empty());
-    CHECK(contains(h2fci.text, "H2, FCI/aug-cc-pVDZ"));
-    CHECK(contains(h2fci.text, "total energy:         -1.1646244795 E_h"));
-    CHECK(contains(h2fci.text, "determinants:         324 (18 orbitals, 2 electrons)"));
+    CHECK(contains(h2fci.text, "Energy: Full CI/aug-cc-pVDZ"));
+    CHECK(contains(h2fci.text, "Full CI total energy:  -1.1646244795 E_h"));
+    CHECK(contains(h2fci.text, "324 determinants"));
     CHECK(contains(h2fci.text, "Natural orbital occupation numbers"));
     // Coupled cluster: CCSD(T) for H2O (PySCF: -76.2760053269 E_h).
     const psilab::RunResult h2occ =
         psilab::run_to_text(psilab::parse_input_text("molecule = H2O\nbasis = aug-cc-pVDZ\nmethod = CCSD(T)\n"));
     CHECK(h2occ.error.empty());
-    CHECK(contains(h2occ.text, "H2O, CCSD(T)/aug-cc-pVDZ"));
-    CHECK(contains(h2occ.text, "total energy:         -76.2760053269 E_h"));
+    CHECK(contains(h2occ.text, "Energy: CCSD(T)/aug-cc-pVDZ"));
+    CHECK(contains(h2occ.text, "CCSD(T) total energy:  -76.2760053269 E_h"));
     CHECK(contains(h2occ.text, "(T) correction"));
     const psilab::RunResult h2ofci = psilab::run_to_text(psilab::parse_input_text("molecule = H2O\nmethod = FCI\n"));
-    CHECK(h2ofci.text.empty() && contains(h2ofci.error, "impossible"));
+    CHECK(contains(h2ofci.error, "impossible") && contains(h2ofci.text, "NOT POSSIBLE") &&
+          contains(h2ofci.text, "Error termination"));
     CHECK(contains(psilab::estimate_text(psilab::parse_input_text("molecule = LiH\nbasis = aug-cc-pVQZ\nmethod = FCI\n")),
                    "NOT POSSIBLE"));
     const psilab::RunResult lih =
         psilab::run_to_text(psilab::parse_input_text("molecule = LiH\nbasis = aug-cc-pCV5Z\n"));
     CHECK(lih.text.empty() && contains(lih.error, "not available for Li"));
+
+    // ΨLab 5.0 keys: job types and their options.
+    const psilab::Settings j5 = psilab::parse_input_text(
+        "molecule = H2O\njob = Opt+Freq+SP\nmethod = HF\nsp_method = ccsd(t)\nsp_basis = AUG-CC-PVTZ\n"
+        "temperature = 350 K\npressure = 1 bar\nopt_convergence = tight\nmax_steps = 30\n");
+    CHECK(j5.input.job == "opt+freq+sp" && j5.input.spMethod == "CCSD(T)" && j5.input.spBasis == "aug-cc-pVTZ");
+    CHECK(j5.input.temperature == 350.0 && j5.input.pressure == 1.0e5);
+    CHECK(j5.input.optConvergence == "tight" && j5.input.maxSteps == 30);
+    CHECK(psilab::parse_input_text("molecule = H2\njob = freq\npressure = 1 atm\n").input.pressure == 101325.0);
+    CHECK(psilab::parse_input_text("molecule = H2\njob = freq\npressure = 100 kPa\n").input.pressure == 1.0e5);
+    CHECK(rejects("molecule = H2\njob = scan\n", "job must be energy, opt, freq, opt+freq or opt+freq+sp"));
+    CHECK(rejects("job = opt\n", "applies to H2, LiH and H2O only"));
+    CHECK(rejects("molecule = H2\njob = opt\nsp_method = CCSD\n", "'sp_method' applies to job = opt+freq+sp only"));
+    CHECK(rejects("molecule = H2\njob = opt\ntemperature = 300\n", "applies to job = freq, opt+freq and opt+freq+sp only"));
+    CHECK(rejects("molecule = H2\njob = freq\nmax_steps = 10\n", "applies to job = opt, opt+freq and opt+freq+sp only"));
+    CHECK(rejects("molecule = H2\njob = opt\nopt_convergence = loose\n", "opt_convergence must be normal or tight"));
+    CHECK(rejects("molecule = H2\njob = opt\nmax_steps = 0\n", "max_steps must be an integer from 1 to 1000"));
+    CHECK(rejects("molecule = H2\njob = freq\ntemperature = -3\n", "temperature must be between"));
+    CHECK(rejects("molecule = H2\njob = freq\npressure = 3 psi\n", "pressure unit"));
+    CHECK(rejects("molecule = H2\njob = opt+freq+sp\nsp_basis = 6-31G\n", "unknown basis set"));
+    // estimates of jobs: steps, analytic or numerical, refusals
+    const std::string est = psilab::estimate_text(psilab::parse_input_text("molecule = H2O\nmethod = CCSD(T)\njob = opt+freq\n"));
+    CHECK(contains(est, "Geometry optimisation: analytic gradient"));
+    CHECK(contains(est, "numerical Hessian: central differences of 6 analytic gradients"));
+    const std::string refused = psilab::estimate_text(psilab::parse_input_text("molecule = H2O\nmethod = CCSDTQ\njob = freq\nfci_memory = 8 GB\n"));
+    CHECK(refused.rfind("Error: ", 0) == 0 && contains(refused, "CCSDTQ frequencies for H2O is not possible"));
+    // a short optimisation job with psilab
+    const psilab::RunResult opt =
+        psilab::run_to_text(psilab::parse_input_text("molecule = LiH\nmethod = HF\njob = opt\nR = 1.5 angstrom\n"));
+    CHECK(opt.error.empty());
+    CHECK(contains(opt.text, "Optimisation step 1") && contains(opt.text, "Stationary point found"));
+    CHECK(contains(opt.text, "R(Li1-H2)"));
+    CHECK(opt.output && opt.output->job && opt.output->job->optimization && opt.output->job->optimization->converged);
 
     // Without scan: no curve section.
     psilab::Settings single = ex;

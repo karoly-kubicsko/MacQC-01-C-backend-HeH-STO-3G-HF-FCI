@@ -210,7 +210,7 @@ HessianResult run_hessian(const Molecule& mol, const BasisSet& basis, const std:
     const auto t0 = Clock::now();
     HessianResult r;
     const std::size_t n3 = 3 * mol.atoms.size();
-    r.reference = run_gradient(mol, basis, method, eo, guess, cb);
+    r.reference = ho.reference ? *ho.reference : run_gradient(mol, basis, method, eo, guess, cb);
     const GradientResult& ref = r.reference;
     if (!ref.point.converged) throw std::runtime_error("the calculation at the reference geometry did not converge");
     r.dipole = ref.dipole;

@@ -175,6 +175,7 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
         OptimizationStep rec;
         rec.step = step;
         rec.geometry = x;
+        if (oo.on_step_start) oo.on_step_start(step, x);
         const BasisSet bx = basis_at_geometry(basis, x);
         GradientResult g = run_gradient(x, bx, method, eo, guess, cb);
         rec.warnings = g.point.warnings;

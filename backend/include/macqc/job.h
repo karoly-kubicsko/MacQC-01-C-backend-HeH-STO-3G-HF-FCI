@@ -6,7 +6,9 @@
 #pragma once
 
 #include <atomic>
+#include <mutex>
 #include <stdexcept>
+#include <string>
 
 namespace macqc {
 
@@ -33,6 +35,18 @@ struct Job {
     std::atomic<int> iteration{0};
     std::atomic<double> energy{0.0};    // latest total energy (E_h)
     std::atomic<double> residual{0.0};  // SCF orbital gradient, CI residual norm or CC amplitude change
+
+    // The output file written so far and a one-line description of the current step
+    // (ΨLab 5.0); read from other threads through output_since() / progress_text().
+    void append_output(const std::string& text);
+    std::string output_since(std::size_t offset, std::size_t* total) const;
+    void set_progress_text(const std::string& text);
+    std::string progress_text() const;
+
+private:
+    mutable std::mutex mutex_;
+    std::string output_;
+    std::string progress_text_;
 };
 
 struct Cancelled : std::runtime_error {
@@ -50,6 +64,8 @@ inline void check_cancelled() {
 }
 
 void report_progress(JobStage stage, int iteration = 0, double energy = 0.0, double residual = 0.0);
+// Sets the progress text of the current job (no effect outside a job).
+void report_progress_text(const std::string& text);
 
 // Installs a job for the lifetime of the scope (restores the previous one).
 class JobScope {

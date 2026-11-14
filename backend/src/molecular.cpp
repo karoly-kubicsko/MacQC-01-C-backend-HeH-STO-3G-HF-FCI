@@ -99,8 +99,7 @@ std::string orbital_list(const std::vector<int>& o) {
     return s;
 }
 
-std::string fci_section(const MolecularResult& r, int level) {
-    const FCIResultGeneral& f = *r.fci;
+std::string fci_section_impl(const FCIResultGeneral& f, double rhf_energy, int level) {
     std::string s = "\nFull CI         all electrons correlated, M_S = 0 determinants, lowest singlet state\n";
     s += format("    %d electrons (%d alpha, %d beta) in %d orbitals: %s alpha x %s beta strings = %s determinants\n",
                 f.alpha + f.beta, f.alpha, f.beta, f.orbitals, thousands(f.alpha_strings).c_str(),
@@ -116,7 +115,7 @@ std::string fci_section(const MolecularResult& r, int level) {
     s += f.converged ? format("    Davidson converged in %d iterations (%.2f s)\n", f.iterations, f.ci_seconds)
                      : format("    Davidson NOT converged after %d iterations\n", f.iterations);
     s += "\nFull CI energies (E_h)\n";
-    s += format("    RHF energy                %20.10f\n", r.rhf->total_energy);
+    s += format("    RHF energy                %20.10f\n", rhf_energy);
     s += format("    Full CI energy            %20.10f\n", f.total_energy);
     s += format("    correlation energy        %20.10f\n", f.correlation_energy);
     s += format("    <S^2>                     %20.10f\n", f.s2);
@@ -133,8 +132,7 @@ std::string fci_section(const MolecularResult& r, int level) {
     return s;
 }
 
-std::string cc_section(const MolecularResult& r, int level) {
-    const CCResult& c = *r.cc;
+std::string cc_section_impl(const CCResult& c, int level) {
     std::string s = "\nCoupled cluster " + c.method + ", all electrons correlated\n";
     s += format("    %d occupied and %d virtual orbitals (%d electrons); %s implementation\n", c.occupied, c.virtuals,
                 2 * c.occupied, c.engine.c_str());
@@ -179,6 +177,12 @@ std::string cc_section(const MolecularResult& r, int level) {
 }
 
 }  // namespace
+
+std::string fci_report_section(const FCIResultGeneral& f, double rhf_energy, int level) {
+    return fci_section_impl(f, rhf_energy, level);
+}
+
+std::string cc_report_section(const CCResult& c, int level) { return cc_section_impl(c, level); }
 
 std::string canonical_method_name(const std::string& method) {
     std::string m;
@@ -522,8 +526,8 @@ std::string molecular_report(const MolecularResult& r) {
     if (nocc >= 1 && nocc < static_cast<int>(h.orbital_energies.size()))
         s += format("    HOMO %.8f E_h, LUMO %.8f E_h, gap %.8f E_h\n", h.orbital_energies[nocc - 1],
                     h.orbital_energies[nocc], h.orbital_energies[nocc] - h.orbital_energies[nocc - 1]);
-    if (r.fci) s += fci_section(r, level);
-    if (r.cc) s += cc_section(r, level);
+    if (r.fci) s += fci_section_impl(*r.fci, r.rhf->total_energy, level);
+    if (r.cc) s += cc_section_impl(*r.cc, level);
     return s;
 }
 
