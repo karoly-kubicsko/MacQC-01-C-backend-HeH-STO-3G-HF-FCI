@@ -313,6 +313,7 @@ relaunch() {   # $@ = launch arguments
 echo "== H2O, RHF/aug-cc-pVDZ"
 relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -psilabMethod RHF
 view_tab "10-h2o-rhf-summary" "Summary"
+layout "h2o-rhf-relaunch"
 view_tab "11-h2o-rhf-hartree-fock" "Hartree–Fock"
 view_tab "12-h2o-rhf-output" "Output"
 

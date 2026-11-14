@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct ContentView: View {
     @Bindable var model: AppModel
@@ -19,6 +20,7 @@ struct ContentView: View {
             DetailView(model: model)
         }
         .navigationTitle("ΨLab")
+        .background(WindowFitter())
         .preferredColorScheme((AppearanceChoice(rawValue: appearanceRaw) ?? .system).colorScheme)
         .task {
             // Show a result right away (the Szabo–Ostlund defaults, or the molecule given as a
@@ -33,6 +35,36 @@ struct ContentView: View {
                     await model.run()
                 }
             }
+        }
+    }
+}
+
+/// Keeps the window on the screen: the default size (1180 × 760 pt) is larger than a 1024-pt
+/// screen, and a restored frame can lie partly outside it. When the window appears, its frame
+/// is clipped to the screen's visible area (the minimum width, 1000 pt, still fits).
+struct WindowFitter: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { WindowFitterView() }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+final class WindowFitterView: NSView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        fit()
+        // SwiftUI may still apply the default size after the view is attached.
+        Task { @MainActor [weak self] in self?.fit() }
+    }
+
+    private func fit() {
+        guard let window, let screen = window.screen ?? NSScreen.main else { return }
+        let visible = screen.visibleFrame
+        var frame = window.frame
+        frame.size.width = min(frame.width, visible.width)
+        frame.size.height = min(frame.height, visible.height)
+        frame.origin.x = min(max(frame.minX, visible.minX), visible.maxX - frame.width)
+        frame.origin.y = min(max(frame.minY, visible.minY), visible.maxY - frame.height)
+        if frame != window.frame {
+            window.setFrame(frame, display: true)
         }
     }
 }
