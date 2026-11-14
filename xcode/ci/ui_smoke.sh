@@ -25,6 +25,33 @@ on run argv
     tell application "System Events"
         tell process "ΨLab"
             set frontmost to true
+            if targetName is "__LAYOUT__" then
+                -- window frame and the frames of the tab buttons, segmented pickers and menus
+                set w to window 1
+                set wp to position of w
+                set ws to size of w
+                set logText to "WINDOW x " & (item 1 of wp) & " y " & (item 2 of wp) & " width " & (item 1 of ws) & " height " & (item 2 of ws) & linefeed
+                set els to entire contents of w
+                repeat with e in els
+                    try
+                        set r to role of e
+                        if r is "AXRadioButton" or r is "AXTabGroup" or r is "AXMenuButton" or r is "AXPopUpButton" then
+                            set n to ""
+                            set d to ""
+                            try
+                                set n to name of e
+                            end try
+                            try
+                                set d to description of e
+                            end try
+                            set p to position of e
+                            set z to size of e
+                            set logText to logText & r & " | " & n & " | " & d & " | x " & (item 1 of p) & " y " & (item 2 of p) & " w " & (item 1 of z) & " h " & (item 2 of z) & linefeed
+                        end if
+                    end try
+                end repeat
+                return logText
+            end if
             if targetName is "__TREE__" then
                 -- accessibility tree (everything except static text), to find how tabs are exposed
                 set els to entire contents of window 1
@@ -126,17 +153,20 @@ with_timeout() {
     return $rc
 }
 
-# Screenshot, and print it at once into the log as a downscaled base64 JPEG, so the images can
-# be read through the GitHub API without downloading the artifact (and survive a timeout).
-# Decode: the line between "IMG_BEGIN name" and "IMG_END name".
+# Screenshots go into the ui-smoke artifact only (PNG and a smaller JPEG); the log keeps the
+# text of every view and the layout numbers, so it stays small enough to read through the API.
 shot() {
     screencapture -x "$OUT/$1.png" || { echo "screencapture failed for $1"; return; }
-    if sips -s format jpeg -s formatOptions 60 -Z 1100 "$OUT/$1.png" --out "$OUT/$1.jpg" > /dev/null 2>&1; then
-        echo "IMG_BEGIN $1"
-        base64 -i "$OUT/$1.jpg" | tr -d '\n'
-        echo
-        echo "IMG_END $1"
-    fi
+    sips -s format jpeg -s formatOptions 60 -Z 1100 "$OUT/$1.png" --out "$OUT/$1.jpg" > /dev/null 2>&1 || true
+    echo "screenshot: $1.png"
+}
+
+# Screen size and the layout of the window (do the six tabs fit next to the sidebar?).
+layout() {   # $1 = label
+    echo "::group::layout: $1"
+    osascript -e 'tell application "Finder" to get bounds of window of desktop' 2>/dev/null | sed 's/^/SCREEN bounds /'
+    with_timeout 60 osascript "$OUT/tab.applescript" "__LAYOUT__" | tee "$OUT/layout-$1.txt"
+    echo "::endgroup::"
 }
 
 dump_tab() {   # $1 = file prefix, $2 = element to click ("" = none)
@@ -171,6 +201,7 @@ sleep 15
 pgrep -x "ΨLab" >/dev/null && echo "ΨLab process is running" || echo "ΨLab process NOT running"
 
 shot "00-launch"
+layout "launch-heh"
 echo "::group::accessibility tree"
 with_timeout 40 osascript "$OUT/tab.applescript" "__TREE__" | tee "$OUT/tree.txt"
 echo "::endgroup::"
@@ -408,6 +439,7 @@ echo "== H2O RHF/aug-cc-pVDZ geometry optimisation from R = 1.0 Å, 110°"
 relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob opt -psilabR 1.0 -psilabAngle 110
 sleep 10
 view_tab "31-h2o-rhf-opt-optimisation" "Optimisation"
+layout "h2o-optimisation"
 view_tab "32-h2o-rhf-opt-summary" "Summary"
 
 echo "== LiH CCSD(T)/aug-cc-pVDZ frequencies and thermochemistry"
