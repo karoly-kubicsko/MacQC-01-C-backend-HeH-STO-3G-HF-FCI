@@ -60,8 +60,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install PySCF
-        run: python3 -m pip install pyscf
+      - name: Install PySCF and geomeTRIC
+        run: python3 -m pip install pyscf geometric
 
       - name: Integral invariants (S, T, V, ERI; l up to 5)
         run: python3 reference/pyscf_integral_reference.py --check
@@ -83,6 +83,12 @@ jobs:
 
       - name: CCSD, CCSD(T) and Full CI gradients (H2, LiH, H2O)
         run: python3 reference/pyscf_correlated_gradient_reference.py --check
+
+      - name: Optimised geometries (PySCF gradients + geomeTRIC)
+        run: >
+          python3 reference/pyscf_optimization_reference.py --check --only
+          H2O/aug-cc-pVDZ/RHF H2O/aug-cc-pVDZ/CCSD "H2O/aug-cc-pVDZ/CCSD(T)" LiH/aug-cc-pVDZ/RHF
+          "LiH/aug-cc-pVDZ/CCSD(T)" H2/aug-cc-pVTZ/FCI
 
   # On request only: every RHF reference case, including H2O/aug-cc-pCV5Z (341 functions), and
   # every Full CI case, including LiH/aug-cc-pCVTZ (11 million determinants).

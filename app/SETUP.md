@@ -44,7 +44,7 @@ Use *File ▸ Add Files to "PsiLab"…* (or drag from Finder). Always: **"Copy i
 | What | Files | Target membership |
 | --- | --- | --- |
 | App | everything in `app/MacQC/` (15 `.swift` files, `MacQC-Bridging-Header.h` and `Assets.xcassets`) | `.swift`: PsiLab; header: none needed |
-| Backend sources | `backend/src/linalg.cpp`, `integrals.cpp`, `report.cpp`, `scf.cpp`, `fci.cpp`, `molecule.cpp`, `basis.cpp`, `gto_integrals.cpp`, `rhf.cpp`, `molecular.cpp`, `gemm.cpp`, `mo_integrals.cpp`, `ci.cpp`, `cc_general.cpp`, `cc_closed_shell.cpp`, `cc_estimate.cpp`, `gto_derivatives.cpp`, `rhf_derivatives.cpp`, `tensor.cpp`, `correlated_gradient.cpp`, `cc_gradient.cpp`, `gradient.cpp`, `job.cpp`, `calculation.cpp`, `api.cpp` | PsiLab |
+| Backend sources | `backend/src/linalg.cpp`, `integrals.cpp`, `report.cpp`, `scf.cpp`, `fci.cpp`, `molecule.cpp`, `basis.cpp`, `gto_integrals.cpp`, `rhf.cpp`, `molecular.cpp`, `gemm.cpp`, `mo_integrals.cpp`, `ci.cpp`, `cc_general.cpp`, `cc_closed_shell.cpp`, `cc_estimate.cpp`, `gto_derivatives.cpp`, `rhf_derivatives.cpp`, `tensor.cpp`, `correlated_gradient.cpp`, `cc_gradient.cpp`, `gradient.cpp`, `internal_coordinates.cpp`, `optimizer.cpp`, `job.cpp`, `calculation.cpp`, `api.cpp` | PsiLab |
 | Basis sets | the folder `basis/` — add it as a **folder reference** ("Create folder references"), so it is copied as `Contents/Resources/basis` | PsiLab (Copy Bundle Resources) |
 | Backend headers | `backend/include/macqc/*.h` and `cc_diagrams.inc` (the generated diagram table) | (headers only) |
 | Framework | `Accelerate.framework` (*General ▸ Frameworks and Libraries*, "Do Not Embed") | PsiLab |
@@ -53,7 +53,7 @@ Use *File ▸ Add Files to "PsiLab"…* (or drag from Finder). Always: **"Copy i
 **Do not add** `backend/cli/main.cpp`, anything in `backend/tests/`, or `reference/` (the CLI and
 the test program have their own `main`, which would clash with the app's).
 
-Check *PsiLab target ▸ Build Phases ▸ Compile Sources*: exactly 15 Swift files + 25 C++ files, and
+Check *PsiLab target ▸ Build Phases ▸ Compile Sources*: exactly 15 Swift files + 27 C++ files, and
 *Copy Bundle Resources*: `Assets.xcassets` and the blue folder `basis`.
 
 ## 3. Build settings

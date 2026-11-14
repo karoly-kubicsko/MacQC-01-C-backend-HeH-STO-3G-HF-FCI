@@ -30,6 +30,8 @@ add_library(macqc STATIC
   backend/src/correlated_gradient.cpp
   backend/src/cc_gradient.cpp
   backend/src/gradient.cpp
+  backend/src/internal_coordinates.cpp
+  backend/src/optimizer.cpp
   backend/src/rhf.cpp
   backend/src/molecular.cpp
   backend/src/gemm.cpp
@@ -127,4 +129,13 @@ target_compile_definitions(macqc_correlated_gradient_tests PRIVATE
   MACQC_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/backend/tests/data")
 add_test(NAME macqc_correlated_gradient_tests COMMAND macqc_correlated_gradient_tests)
 set_tests_properties(macqc_correlated_gradient_tests PROPERTIES
+  ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 7200)
+# ΨLab 5.0: geometry optimisation in redundant internal coordinates.
+add_executable(macqc_optimizer_tests backend/tests/test_optimizer.cpp)
+target_link_libraries(macqc_optimizer_tests PRIVATE macqc)
+target_include_directories(macqc_optimizer_tests PRIVATE third_party)
+target_compile_definitions(macqc_optimizer_tests PRIVATE
+  MACQC_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/backend/tests/data")
+add_test(NAME macqc_optimizer_tests COMMAND macqc_optimizer_tests)
+set_tests_properties(macqc_optimizer_tests PROPERTIES
   ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 7200)
