@@ -224,12 +224,24 @@ struct OutputTextView: NSViewRepresentable {
             storage.setAttributedString(NSAttributedString(string: text, attributes: attributes))
             c.generation = generation
             c.length = ns.length
-            if follow { tv.scrollToEndOfDocument(nil) }
+            if follow { scrollToEnd(tv) }
         } else if ns.length > c.length {
             let piece = ns.substring(from: c.length)
             storage.append(NSAttributedString(string: piece, attributes: attributes))
             c.length = ns.length
-            if follow { tv.scrollToEndOfDocument(nil) }
+            if follow { scrollToEnd(tv) }
+        }
+    }
+
+    /// Shows the last line from its start. (scrollToEndOfDocument also scrolls to the right edge
+    /// of the longest line, which cut off the first characters of every line.) The output ends
+    /// with a newline, so its end is at the left margin.
+    private func scrollToEnd(_ tv: NSTextView) {
+        let end = tv.textStorage?.length ?? 0
+        tv.scrollRangeToVisible(NSRange(location: end, length: 0))
+        if let clip = tv.enclosingScrollView?.contentView, clip.bounds.origin.x != 0 {
+            clip.scroll(to: NSPoint(x: 0, y: clip.bounds.origin.y))
+            tv.enclosingScrollView?.reflectScrolledClipView(clip)
         }
     }
 }

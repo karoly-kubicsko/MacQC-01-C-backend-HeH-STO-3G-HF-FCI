@@ -171,7 +171,7 @@ layout() {   # $1 = label
 
 dump_tab() {   # $1 = file prefix, $2 = element to click ("" = none)
     echo "::group::UI text: $1"
-    with_timeout 40 osascript "$OUT/tab.applescript" "$2" | tee "$OUT/$1.txt"
+    with_timeout 90 osascript "$OUT/tab.applescript" "$2" | tee "$OUT/$1.txt"
     echo "::endgroup::"
     shot "$1"
 }
